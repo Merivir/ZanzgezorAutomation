@@ -1,0 +1,484 @@
+CHATBOT / CHAT MODULE DOCUMENTATION
+
+1. Introduction and Purpose
+
+The Chatbot / Chat module manages real-time text communication between external users and agents in the Zangezor system.
+
+Its purpose is to:
+- Receive chat conversations from the client-side widget
+- Route chats to the correct agent queue
+- Allow agents to handle conversations
+- Keep chat state synchronized across live monitoring areas and reporting areas
+
+Depending on configuration, a conversation may start with chatbot messages or with a chatbot menu, and then continue to a human operator.
+
+This module is live and operational. It is used during the conversation itself, not only after it ends. Because of that, routing, counters, state changes, and conversation actions must update in real time.
+
+
+2. Working Logic
+
+A chat starts on the external site when the client opens the widget and begins a conversation, for example by choosing "Chat with operator".
+
+Routing rules:
+- If no eligible agent is available, the chat goes to Waiting
+- If an agent is available and has not reached the configured chat limit, the chat goes directly to that agent's Pending list
+
+From Pending, the agent can:
+- Take
+- Skip
+- Forward
+
+Action results:
+- Take opens the active conversation and moves the chat into handling
+- Skip opens the resolution flow and removes the chat from Pending after resolution or timeout
+- Forward reassigns the chat to another available agent
+
+Once taken, the chat enters active conversation mode. In this mode the agent can:
+- Exchange text messages
+- Send files
+- Use templates
+- Search the conversation
+- Forward from inside the conversation
+- End the chat and resolve it
+
+
+3. Main Flow
+
+A standard live flow works like this:
+
+1. The client starts a chat from the external widget
+2. If no agents are available, the chat appears in General Info -> Waiting
+3. If an agent is available, the chat appears in that agent's Pending Channels and in General Info -> Pending for that agent
+4. The agent clicks Take
+5. The conversation window opens and the chat moves to In Progress
+6. The agent and client exchange messages or attachments
+7. The agent clicks End
+8. The system asks for confirmation
+9. The agent completes or auto-completes the resolution step
+10. The chat is removed from active lists
+
+
+4. States and System Behavior
+
+The suite uses three key live states:
+
+Waiting
+- The chat exists in the system, but no eligible agent is currently available
+
+Pending
+- The chat is assigned to an agent but has not yet been taken into active conversation
+
+In Progress
+- The chat has been taken and is being actively handled
+
+State rules:
+- A chat must not exist in Waiting and Pending at the same time
+- Once taken, it must leave Pending and become In Progress
+- Once skipped, forwarded, or ended with resolution, it must disappear from Pending or active lists immediately
+- Closed chats must not remain stuck in Pending
+- State movement must happen without duplication
+
+
+5. Connected Behavior
+
+5.1 General Info
+
+This module is directly connected to General Info.
+
+Expected behavior:
+- Chat statistics and live chat sections must appear there
+- Waiting, Pending, and In Progress counters and views must stay synchronized with Chat behavior
+- If routing or state changes are wrong in Chat, the inconsistency must also be visible in General Info
+
+5.2 Resolution
+
+This module is also connected to resolution behavior.
+
+Expected behavior:
+- Skip from Pending opens resolution logic
+- End from active conversation opens resolution logic
+- Timeout-based auto-resolution must work correctly
+- Chat history and reporting depend on correct action logging during the conversation lifecycle
+
+
+6. Visibility and Access
+
+After agent login:
+- The Chat section must be visible in the header for users who have chat permission
+- The user must be able to open the Chat section successfully
+
+Permission rule:
+- If the role does not have chat access, the Chat section must not be treated as generally available
+
+
+7. Routing Behavior
+
+7.1 No eligible agent online
+
+When the client starts a new chat and no eligible agent is online:
+- The chat must go to Waiting
+- It must remain unassigned
+- It must not appear in Pending for any agent
+
+7.2 At least one eligible agent available
+
+When at least one agent is available for chat and has not reached the configured chat limit:
+- The chat must go directly to that agent's Pending list
+- General Info must show the chat in Pending for that same agent
+- The chat must not also appear in Waiting
+
+7.3 Agents at capacity
+
+When all otherwise-available agents are already at their maximum chat capacity:
+- The new chat must go to Waiting instead of Pending
+
+7.4 Availability changes
+
+If an agent changes status to a non-chat-available status:
+- That agent must stop receiving new pending chats
+- Already pending chats remain visible
+
+
+8. Pending Channels Behavior
+
+Pending Channels is the agent's pre-conversation queue.
+
+Expected behavior:
+- The CHAT counter in the top bar must exactly match the number of chats in Pending
+- The list must update in real time when a new chat is routed to the agent
+- No page refresh should be required
+
+Pending row data:
+- Client phone number
+- Full name if provided
+- Date/time of the chat
+
+Hover behavior:
+- Exactly three action icons must appear on the right side
+- Forward
+- Skip
+- Take
+- These icons must not be visible before hover
+
+Integrity rules:
+- Pending must not contain duplicate rows for the same chat
+- Refreshing or reopening the section must not create duplicates
+- Forwarded, skipped, taken, or ended chats must be removed immediately
+- No ghost rows may remain
+
+
+9. Forward Behavior from Pending
+
+When the agent uses Forward from a pending chat:
+- The target list must show only agents who are active and able to receive chats
+- Busy, offline, or at-limit agents must not appear
+- The selected target can be cleared using the X control before finalizing
+
+After forwarding:
+- The chat must disappear from Agent A's Pending
+- The chat must appear in Agent B's Pending
+- The original agent must receive a success notification
+
+
+10. Skip Behavior from Pending
+
+Using Skip on a pending chat must:
+- Open the resolution window
+- Remove the chat from Pending after required fields are submitted
+- Make sure the chat is no longer shown as active for the agent
+
+If a countdown timer exists and the agent does not fill anything:
+- The system must auto-resolve when the timer reaches zero
+- The chat must be marked as skipped
+- The chat must be removed from Pending
+- The resolution window must not reopen for the same chat
+- Switching browser tabs must not reset the timer
+
+
+11. Take Behavior and Conversation Opening
+
+Clicking Take on a pending chat must:
+- Open the active conversation window or tab
+- Move the chat from Pending to In Progress
+
+Conversation header expectations:
+- The tab title must show the client phone number
+- The top of the conversation must show the client phone number
+- Full name must be visible if provided
+- Email must be visible if provided
+
+Right-side conversation actions:
+- Auto reply
+- Forward to
+- Search
+- End
+
+Bottom message area:
+- Text input
+- Emoji button
+- Attachment button
+
+
+12. Conversation Messaging Behavior
+
+The agent must be able to send:
+- Normal text messages
+- Emojis
+- Combined text + emoji messages
+- Attachments
+
+Empty-message rules:
+- Empty messages must not be sent
+- Pressing Enter with blank input must not create an empty bubble
+- Sending whitespace-only input must not create an empty bubble
+- No UI or console errors should appear
+
+Auto reply:
+- The dropdown must contain predefined templates
+- Selecting a template inserts its text into the message input
+- The agent can edit the inserted text before sending
+
+Search:
+- The Search field must find text across the entire conversation
+- Matching messages must be highlighted or scrolled into view
+- Searching for text that does not exist must fail gracefully
+- Layout must remain stable
+
+Forward inside conversation:
+- The Forward to dropdown must show only active agents who can receive chats
+- Busy or offline agents must not appear
+
+
+13. Attachments Behavior
+
+The conversation supports file sending through the paperclip button.
+
+Supported examples in scope:
+- Images
+- Videos
+- Audio files
+- PDF
+- DOCX
+- TXT
+
+Expected behavior:
+- Supported files must upload successfully
+- Files must appear in chat as a preview or icon
+- The client must receive and be able to view or download them
+- Large-file upload should show progress or a spinner
+
+Caption behavior:
+- Attachments may be sent with or without captions
+- If a caption is provided, it must appear under the file preview
+- The client must see the same structure
+- If no caption is provided, no empty placeholder should appear
+
+Layout behavior:
+- Very long file names must wrap correctly or truncate safely
+- The bubble layout must not break
+
+
+14. Seen Indicators
+
+Seen-status behavior is expected in both directions.
+
+Client to agent:
+- When the client sends messages and the agent has not opened the chat yet, the client should see a single gray check
+- After the agent opens the chat, the client should see a double check plus timestamp
+
+Agent to client:
+- When the agent sends a message and the client has not opened the chat yet, the agent should see a single gray check
+- After the client opens the chat, the indicator must update to double check plus timestamp
+
+This same behavior must also apply to chatbot auto-messages when the client reads them.
+
+
+15. Reply, Copy, Edit, and Delete Behavior
+
+The conversation supports a context menu on right-click or equivalent interaction.
+
+Client message menu:
+- Reply
+- Copy
+
+Agent message menu:
+- Reply
+- Copy
+- Edit
+- Delete
+
+Permission rule:
+- Client messages must not be editable or deletable by the agent
+
+Reply behavior:
+- Reply must show a "Replied to ..." block above the input
+- After sending, the sent bubble must also show the reply block
+- Clicking or hovering that header should highlight or scroll to the original message
+- This must work for replies to both client and agent messages
+
+Copy behavior:
+- Copy must include only message text and emojis
+- It must not include timestamps
+- It must not include reply headers
+- It must not include edited markers
+- It must not include deleted markers
+- It must not include icons
+
+Edit behavior:
+- Edit must update the same message bubble
+- Edit must not create a new message bubble
+- The edited message must be marked as edited
+
+Delete behavior:
+- Delete must replace the original text with a deleted placeholder
+- Time and seen ticks must remain visible
+- Further context actions on that bubble must be disabled
+- Reply headers pointing to that message must update to the deleted placeholder
+- The deleted placeholder must persist after navigation and reload
+
+
+16. Ending Chat and Resolution Behavior
+
+When the agent clicks End:
+- The system must first show a confirmation dialog with Yes and No
+
+If the agent chooses No:
+- Termination is canceled
+- The conversation remains active
+- A rejection toast appears
+- No resolution window opens
+
+If the agent chooses Yes:
+- A success toast appears
+- A Resolution form opens under the conversation
+
+Resolution form contents:
+- Identifier
+- Status dropdown
+- Comment field
+- Resolve action
+- Cancel action
+
+Post-confirmation behavior:
+- Sending further messages becomes disabled
+- The chat remains visible until resolution is completed or the timer expires
+
+Timer rules:
+- The resolution countdown must not reset after tab switching or refresh
+- When the timer reaches zero, the system must auto-resolve
+- The resolution window must close
+- The chat must be removed from the active list
+- After manual submission, the resolution window must not reopen after navigation, tab switching, or refresh
+
+
+17. Chatbot-Specific Behavior
+
+The suite includes chatbot-specific behavior where the conversation may begin with automatic messages or chatbot flow before human takeover.
+
+Required expectations:
+- The first chatbot auto-message must receive the correct seen state once the client reads it
+- Client-side messages must not appear duplicated in the agent UI when the same chat is opened after the chatbot flow
+
+Documented rule:
+- Chatbot-originated conversation data and operator-handled conversation data must remain in one coherent conversation history
+
+
+18. Special Behavior and Edge Cases
+
+Important edge cases:
+
+Capacity-based routing
+- Even if agents are online, new chats must still go to Waiting if all eligible agents are already at their configured limit
+
+Resolution timer persistence
+- Skip-resolution and end-resolution timers must continue correctly after tab switching or refresh
+- Timers must not reset
+- Timers must not flicker
+- Completed resolution windows must not reopen
+
+Message-history integrity
+- Client messages must not duplicate in the agent UI
+- Deleted placeholders must persist
+- Replies must continue pointing correctly after deletion
+- Copied content must exclude system UI markers
+
+
+19. QA Considerations
+
+This module is both a live-routing area and a conversation-integrity area.
+
+Validation should cover:
+- Correct lifecycle changes from Waiting to Pending to In Progress to Ended
+- Counter synchronization
+- Immediate list updates after actions
+- Conversation-history correctness after replies, edits, deletions, attachments, and resolution
+
+Special attention should be paid to:
+- Routing by availability and chat limits
+- Pending counter accuracy
+- No-duplicate guarantees
+- Real-time updates
+- Forward target restrictions
+- Skip and end resolution behavior
+- Seen indicators
+- Attachment handling
+- Context-menu permissions by message type
+- Reply/copy/edit/delete correctness
+- Chatbot message handling
+- Visibility of chat statistics in General Info
+
+
+20. Test Coverage Overview
+
+The chatbot test suite is expected to cover:
+- Chat-section visibility after agent login
+- Routing to Waiting when no agents are available
+- Routing to Pending when an agent is available
+- Waiting behavior when all agents are at limit
+- Forward target visibility rules
+- Forward cancel behavior
+- Forward reassignment between agents
+- Skip resolution and auto-resolve logic
+- Take behavior
+- Pending counter accuracy
+- Real-time Pending updates
+- Behavior after changing availability
+- Immediate row removal after actions
+- Prevention of duplicate Pending rows
+- Removal of ended chats from Pending
+- Pending row data visibility
+- Hover action icons
+- Conversation UI structure after Take
+- Auto-reply insertion
+- Forward list in conversation
+- Conversation search
+- Empty-message prevention
+- Emoji sending
+- Combined text + emoji sending
+- Attachment handling with and without captions
+- Long-filename layout behavior
+- Seen indicators in both directions
+- End-chat confirmation
+- Rejection and confirmation flows
+- Timeout-based resolution
+- Prevention of resolution reopening
+- Context-menu permissions
+- Reply/copy/edit/delete behavior
+- Seen state for chatbot auto-messages
+- Prevention of duplicated client messages in agent view
+- Visibility of chat statistics in General Info
+
+
+21. Suggested Next Step for Automation
+
+This document is detailed enough to start converting behavior into automated coverage.
+
+Recommended automation order:
+1. Visibility and access
+2. Routing and live state transitions
+3. Pending actions: Take, Skip, Forward
+4. Conversation UI structure
+5. Messaging basics
+6. Resolution timers
+7. Chatbot-specific history integrity
+8. Attachments, context menu, and edge cases
