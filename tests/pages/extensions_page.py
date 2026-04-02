@@ -5,39 +5,40 @@ from selenium.webdriver.support import expected_conditions as ec
 class ExtensionsPage:
     SEARCH_INPUT = (
         By.XPATH,
-        "//input[contains(@placeholder, 'extension') or @name='extension' or @type='text']",
+        "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/cc-dynamic-form/form/div[2]/div/div/cc-text-control/div/div/span/input"
     )
+    
     SEARCH_BUTTON = (
         By.XPATH,
-        "//button[normalize-space()='Search' or contains(., 'Search')]",
+        "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/div/div[2]/cc-button/p-button/button"
     )
     CLEAR_FILTERS = (
         By.XPATH,
-        "//a[contains(., 'Clear filters')] | //button[contains(., 'Clear filters')]",
+        "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/div/div[1]/cc-button/p-button/button"
     )
     EXPORT_BUTTON = (
         By.XPATH,
-        "//button[contains(., 'Export')]",
+        "//*[@id='pn_id_7']/div[1]/div/div[2]/div/cc-button/p-button/button"
     )
     ADD_BUTTON = (
         By.XPATH,
-        "//button[contains(., 'Add')]",
+        "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[2]/p-button/button"
     )
     DELETE_BUTTON = (
         By.XPATH,
-        "//button[contains(., 'Delete')]",
+        "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[3]/p-button/button"
     )
     PUBLISH_BUTTON = (
         By.XPATH,
-        "//button[contains(., 'Publish')]",
+        "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[1]/p-button/button"
     )
     TABLE = (
         By.XPATH,
-        "//table",
+        "//*[@id='pn_id_7-table']"
     )
     COLUMN_TOGGLE = (
         By.XPATH,
-        "//*[self::button or self::div or self::span][contains(., 'Column') or contains(., 'column')]",
+        "//*[@id='pn_id_10']/div[3]"
     )
 
     def __init__(self, driver, wait):
@@ -46,6 +47,7 @@ class ExtensionsPage:
 
     def wait_until_loaded(self):
         self.wait.until(ec.presence_of_element_located(self.TABLE))
+        #expected condition
 
     def has_main_controls(self) -> bool:
         required_locators = [

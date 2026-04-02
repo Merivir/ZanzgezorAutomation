@@ -5,13 +5,11 @@ from selenium.webdriver.support import expected_conditions as ec
 class PortalPage:
     ADMINISTRATION_MENU = (
         By.XPATH,
-        "//*[self::a or self::button or self::span or self::div]"
-        "[contains(translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'administration')]",
+        "/html/body/cc-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[11]/button"
     )
     EXTENSIONS_LINK = (
         By.XPATH,
-        "//*[self::a or self::button or self::span or self::div]"
-        "[contains(translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'extension')]",
+        "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[15]/button"
     )
 
     def __init__(self, driver, wait):
@@ -19,7 +17,7 @@ class PortalPage:
         self.wait = wait
 
     def wait_until_loaded(self):
-        self.wait.until(lambda d: "/zz-portal" in d.current_url)
+        self.wait.until(lambda d: "/zz-portal" in d.current_url and ec.presence_of_element_located(self.ADMINISTRATION_MENU)(d))
 
     def open_administration(self):
         self.wait.until(ec.presence_of_element_located(self.ADMINISTRATION_MENU))
