@@ -39,12 +39,15 @@ else:
 for module_name in active_modules:
     print(f"Running tests for module: {module_name}")
 
-    get_module_active_sections(config, module_name)
+    active_sections = get_module_active_sections(config, module_name)
+    print(f"Active sections for module '{module_name}': {active_sections}")
+    
     # So i need to call modules/{module_name}/test_{module_name}.py and run the test cases in that file.
     test_file = f"tests/modules/{module_name}/test_{module_name}.py"
     if os.path.exists(test_file):
         print(f"Running tests in {test_file}...")
-        os.system(f"pytest {test_file}")
+        os.environ["ACTIVE_SECTIONS"] = ",".join(active_sections)
+        os.system(f"python {test_file}")
     else:
         print(f"Test file {test_file} not found. Skipping tests for module: {module_name}")
 
