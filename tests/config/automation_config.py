@@ -1,3 +1,6 @@
+from tests import modules
+
+
 def load_config():
     import json
     with open("tests/config/test_config.json") as f:
@@ -47,7 +50,14 @@ def get_client_config(config, client_name):
     return client_config
 
 
-def modules_active(config):
+def get_modules_config(config):  
+    active_client = get_active_client(config)
+    client_config = get_client_config(config, active_client)
+    
+    modules_container = client_config.get("modules", {})
+    return modules_container
+
+def get_modules_active(config):
     """
     Return the list of active modules for the current active client.
 
@@ -60,10 +70,32 @@ def modules_active(config):
     Raises:
         ValueError: If the active client is missing or invalid.
     """
-    active_client = get_active_client(config)
-    client_config = get_client_config(config, active_client)
+    modules = get_modules_config(config)
+    #take from modules, active modules which are enabled and return the list of active modules.
+    active_modules = [module for module, module_container in modules.items() if module_container.get("enabled", False)]
     
-    modules = client_config.get("modules", {})
-    # Return a list of module names that are active (enabled) for the active client.
-    #this takes modules pair, and leaves only those modules where the value is true, meaning they are active, and then returns the list of active module names.
-    return [module for module, is_active in modules.items() if is_active]
+    return active_modules
+
+def get_module_active_sections(config, module_name):
+    """
+    Return the list of active sections for a specific module.
+
+    Args:
+        config: The configuration dictionary loaded from the JSON file.
+        module_name: The name of the module for which to retrieve active sections. 
+    Returns:
+        A list of section keys that are enabled for the specified module.           
+    Raises:
+        ValueError: If the specified module is not found in the configuration.
+    """
+    modules = get_modules_active(config)
+    if module_name not in modules:
+        raise ValueError(f"Module '{module_name}' is not active or not found in configuration.")
+    
+    module_config = get_modules_config(config).get(module_name, {})
+    sections = module_config.get("sections", {})
+
+    print(f"Sections for module '{module_name}': {sections}")
+    active_sections = [section for section, section_container in sections.items() if section_container]   
+
+    return active_sections
