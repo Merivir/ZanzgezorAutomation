@@ -3,6 +3,7 @@ from selenium.webdriver.support import expected_conditions as ec
 
 
 class LoginPage:
+    # Flexible login selectors are useful while the UI is still changing.
     USERNAME = (
         By.XPATH,
         "//input[@name='username' or @id='username' or @autocomplete='username' or @type='text']",
@@ -19,11 +20,13 @@ class LoginPage:
         self.base_url = base_url.rstrip("/")
 
     def open(self):
+        # Open the login page directly and wait for the form to become usable.
         self.driver.get(f"{self.base_url}/login/")
         self.wait.until(ec.visibility_of_element_located(self.USERNAME))
         self.wait.until(ec.visibility_of_element_located(self.PASSWORD))
 
     def login(self, username: str, password: str):
+        # Fill the login form and submit it.
         user_input = self.driver.find_element(*self.USERNAME)
         password_input = self.driver.find_element(*self.PASSWORD)
         user_input.clear()

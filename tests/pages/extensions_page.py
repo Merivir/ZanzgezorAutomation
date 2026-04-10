@@ -3,6 +3,7 @@ from selenium.webdriver.support import expected_conditions as ec
 
 
 class ExtensionsPage:
+    # Main controls we expect on the Extensions configuration page.
     SEARCH_INPUT = (
         By.XPATH,
         "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/cc-dynamic-form/form/div[2]/div/div/cc-text-control/div/div/span/input"
@@ -46,10 +47,11 @@ class ExtensionsPage:
         self.wait = wait
 
     def wait_until_loaded(self):
+        # The table is the simplest signal that the page finished opening.
         self.wait.until(ec.presence_of_element_located(self.TABLE))
-        #expected condition
 
     def has_main_controls(self) -> bool:
+        # Basic smoke check for the most important page controls.
         required_locators = [
             self.SEARCH_INPUT,
             self.SEARCH_BUTTON,
@@ -62,5 +64,6 @@ class ExtensionsPage:
         return all(self.driver.find_elements(*locator) for locator in required_locators)
 
     def visible_headers(self) -> list[str]:
+        # Helper for future assertions around visible table columns.
         header_nodes = self.driver.find_elements(By.XPATH, "//table//th")
         return [node.text.strip() for node in header_nodes if node.text.strip()]
