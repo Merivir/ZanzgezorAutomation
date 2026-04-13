@@ -11,6 +11,6 @@ for section in active_sections:
     test_file = f"tests/modules/administration/test_{section}.py"
     if os.path.exists(test_file):
         print(f"Running tests in {test_file}...")
-        os.system(f"pytest {test_file}")
+        os.system(f"pytest -s {test_file}")
     else:
         print(f"Test file {test_file} not found. Skipping tests for section: {section}")

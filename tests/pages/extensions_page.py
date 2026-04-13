@@ -67,3 +67,8 @@ class ExtensionsPage:
         # Helper for future assertions around visible table columns.
         header_nodes = self.driver.find_elements(By.XPATH, "//table//th")
         return [node.text.strip() for node in header_nodes if node.text.strip()]
+
+
+    def is_loaded(self) -> bool:
+        # Final check to confirm the page is fully loaded and ready for interaction.
+        return self.has_main_controls() and len(self.visible_headers()) > 0
