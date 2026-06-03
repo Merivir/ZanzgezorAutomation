@@ -6,12 +6,15 @@ from selenium.common.exceptions import ElementClickInterceptedException, StaleEl
 
 
 class ExtensionsPage:
+    TABLE_DATA_HEADERS = ["Extension", "Real Extension", "Password", "Type", "Transport type", "Status"]
+
     # Main page locators
     EXTENSIONS_HEADER = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/h1")
     SEARCH_INPUT = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/cc-dynamic-form/form/div[2]/div/div/cc-text-control/div/div/span/input")
     SEARCH_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/div/div[2]/cc-button/p-button/button")
     CLEAR_FILTERS = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/div/div[1]/cc-button/p-button/button")
     EXPORT_BUTTON = (By.XPATH, "//*[@id='pn_id_7']/div[1]/div/div[2]/div/cc-button/p-button/button")
+    EXPORT_CSV_OPTION = (By.XPATH, "//div[contains(@class, 'export-table-items')]//*[normalize-space()='CSV']")
     ADD_BUTTON = (By.XPATH, "//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add']]")
     DELETE_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[3]/p-button/button")
     PUBLISH_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[1]/p-button/button")
@@ -19,8 +22,14 @@ class ExtensionsPage:
     # Table locators
     TABLE = (By.XPATH, "//*[@id=\"pn_id_7-table\"]")
     COLUMN_TOGGLE = (By.XPATH, "//*[@id='pn_id_10']/div[3]")
+    COLUMN_OPTIONS = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option']")
+    COLUMN_PANEL = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]")
+    TABLE_HEADERS = (By.XPATH, "//table//thead//th")
     TABLE_ROWS = (By.XPATH, "//table//tbody/tr")
+    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit']]")
     EMPTY_TABLE_MESSAGE = (By.XPATH, "//*[@id=\"pn_id_7-table\"]/tbody/tr/td")
+    FIRST_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='First Page']")
+    NEXT_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Next Page']")
     LAST_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Last Page']")
     DROPDOWN_PANEL = (By.XPATH, "//div[contains(@class, 'p-dropdown-panel')]")
 
@@ -45,6 +54,9 @@ class ExtensionsPage:
     ADD_POPUP_SUBMIT = (By.XPATH, "//p-dialog//cc-button[2]//button")
     ADD_POPUP_CANCEL = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/cc-dynamic-popup/p-dialog/div/div/div[3]/div/div[2]/cc-button[1]/p-button/button")
     ADD_POPUP_REQUIRED_ERRORS = (By.XPATH, "//p-dialog//*[contains(@class, 'cc-control-error') and normalize-space()='Required field']")
+    POPUP_INPUTS = (By.XPATH, "//p-dialog//input")
+    POPUP = (By.XPATH, "//p-dialog")
+    POPUP_DROPDOWN_LABELS = (By.XPATH, "//p-dialog//*[contains(@class, 'p-dropdown-label') or contains(@class, 'p-multiselect-label')]")
 
     def __init__(self, driver, wait):
         self.driver = driver
@@ -164,14 +176,287 @@ class ExtensionsPage:
         search_input.send_keys(str(extension_number))
         self.wait.until(ec.element_to_be_clickable(self.SEARCH_BUTTON)).click()
         return self  # Return the page object to allow for method chaining in tests
+
+    def export_extensions(self):
+        export_button = self.wait.until(ec.presence_of_element_located(self.EXPORT_BUTTON))
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", export_button)
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_BUTTON)))
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_CSV_OPTION)))
+        return self
     
     def visible_table_rows(self):
         # Returns only the rows that are currently visible (i.e. not filtered out or hidden).
         return self.driver.find_elements(*self.TABLE_ROWS)  
+
+    def visible_table_column_count(self) -> int:
+        return len(
+            [
+                header
+                for header in self.driver.find_elements(*self.TABLE_HEADERS)
+                if header.is_displayed() and header.text.strip()
+            ]
+        )
+
+    def visible_table_headers(self):
+        return [
+            header.text.strip()
+            for header in self.driver.find_elements(*self.TABLE_HEADERS)
+            if header.is_displayed() and header.text.strip()
+        ]
+
+    def wait_for_visible_table_column_count(self, expected_count):
+        self.wait.until(lambda _: self.visible_table_column_count() == expected_count)
+        return self
+
+    def open_column_visibility_dropdown(self):
+        if self.is_column_visibility_dropdown_open():
+            return self
+
+        self.wait.until(ec.element_to_be_clickable(self.COLUMN_TOGGLE)).click()
+        self.wait.until(ec.visibility_of_element_located(self.COLUMN_PANEL))
+        self.wait.until(lambda _: len(self.column_visibility_options()) > 0)
+        return self
+
+    def close_column_visibility_dropdown(self):
+        if not self.is_column_visibility_dropdown_open():
+            return self
+
+        trigger = self.wait.until(ec.element_to_be_clickable(self.COLUMN_TOGGLE))
+        self.click_element(trigger)
+        if self.is_column_visibility_dropdown_open():
+            self.wait.until(ec.element_to_be_clickable(self.EXTENSIONS_HEADER)).click()
+        self.wait.until(ec.invisibility_of_element_located(self.COLUMN_PANEL))
+        return self
+
+    def is_column_visibility_dropdown_open(self) -> bool:
+        return any(panel.is_displayed() for panel in self.driver.find_elements(*self.COLUMN_PANEL))
+
+    def column_visibility_options(self):
+        return [option for option in self.driver.find_elements(*self.COLUMN_OPTIONS) if option.is_displayed()]
+
+    def column_visibility_option_labels(self):
+        try:
+            return [option.get_attribute("aria-label") for option in self.column_visibility_options()]
+        except StaleElementReferenceException:
+            return [option.get_attribute("aria-label") for option in self.column_visibility_options()]
+
+    def column_visibility_option_count(self) -> int:
+        return len(self.column_visibility_option_labels())
+
+    def is_column_option_selected(self, option) -> bool:
+        return option.get_attribute("aria-checked") == "true"
+
+    def set_column_option_visibility(self, label, visible):
+        option_locator = (
+            By.XPATH,
+            "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option' and @aria-label="
+            f"'{label}']",
+        )
+        option = self.wait.until(ec.element_to_be_clickable(option_locator))
+        if self.is_column_option_selected(option) != visible:
+            self.click_element(option)
+            self.wait.until(lambda _: self.driver.find_element(*option_locator).get_attribute("aria-checked") == str(visible).lower())
+        return self
+
+    def set_all_column_visibility(self, visible):
+        self.open_column_visibility_dropdown()
+        labels = self.column_visibility_option_labels()
+        for label in labels:
+            try:
+                self.set_column_option_visibility(label, visible)
+            except StaleElementReferenceException:
+                self.set_column_option_visibility(label, visible)
+        self.close_column_visibility_dropdown()
+        return self
+
+    def set_columns_visibility(self, labels, visible):
+        self.open_column_visibility_dropdown()
+        for label in labels:
+            try:
+                self.set_column_option_visibility(label, visible)
+            except StaleElementReferenceException:
+                self.set_column_option_visibility(label, visible)
+        self.close_column_visibility_dropdown()
+        return self
     
     def get_extension_column_value(self, row):
         # Assuming the first column contains the extension name/number, this function retrieves that value from a given row element.
         return row.find_element(By.XPATH, "./td[1]").text.strip()
+
+    def visible_table_records(self):
+        headers = self.visible_table_headers()
+        records = []
+
+        for row in self.visible_table_rows():
+            cells = [
+                cell.text.strip()
+                for cell in row.find_elements(By.XPATH, "./td")
+                if cell.is_displayed() and cell.text.strip() and cell.text.strip() != "edit"
+            ]
+            if not cells or cells[0] == "No data to display!":
+                continue
+
+            data_headers = headers
+            if "Extension" not in data_headers:
+                data_headers = self.TABLE_DATA_HEADERS
+
+            if len(cells) > len(data_headers):
+                cells = cells[-len(data_headers):]
+
+            records.append(dict(zip(data_headers, cells[: len(data_headers)])))
+
+        return records
+
+    def first_visible_table_record(self):
+        records = self.visible_table_records()
+        if not records:
+            return None
+
+        return records[0]
+
+    def first_visible_table_row_text(self):
+        row = self.wait.until(lambda _: self.visible_table_rows()[0] if self.visible_table_rows() else False)
+        return row.text
+
+    def open_first_row_edit_popup(self):
+        row = self.wait.until(lambda _: self.visible_table_rows()[0] if self.visible_table_rows() else False)
+        edit_button = row.find_element(*self.ROW_EDIT_BUTTON)
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", edit_button)
+        self.click_element(edit_button)
+        self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
+        self.wait.until(lambda _: self.is_add_popup_open())
+        return self
+
+    def popup_field_values(self):
+        values = []
+
+        for input_element in self.driver.find_elements(*self.POPUP_INPUTS):
+            value = input_element.get_attribute("value")
+            if value:
+                values.append(value.strip())
+
+        for label in self.driver.find_elements(*self.POPUP_DROPDOWN_LABELS):
+            text = label.text.strip()
+            if text:
+                values.append(text)
+
+        for popup in self.driver.find_elements(*self.POPUP):
+            for line in popup.text.splitlines():
+                line = line.strip()
+                if line:
+                    values.append(line)
+
+        return values
+
+    def edit_popup_password_value(self):
+        password_locators = [
+            (
+                By.XPATH,
+                "//p-dialog//*[self::cc-text-control or self::div]"
+                "[.//label[contains(normalize-space(), 'Password')]]//input",
+            ),
+            self.ADD_POPUP_PASSWORD,
+        ]
+
+        for locator in password_locators:
+            for input_element in self.driver.find_elements(*locator):
+                if input_element.is_displayed():
+                    value = input_element.get_attribute("value")
+                    if value:
+                        return value.strip()
+
+        input_values = [
+            input_element.get_attribute("value").strip()
+            for input_element in self.driver.find_elements(*self.POPUP_INPUTS)
+            if input_element.is_displayed() and input_element.get_attribute("value")
+        ]
+        return input_values[-1] if input_values else ""
+
+    def is_edit_popup_password_visible(self):
+        password_locators = [
+            (
+                By.XPATH,
+                "//p-dialog//*[self::cc-text-control or self::div]"
+                "[.//label[contains(normalize-space(), 'Password')]]//input",
+            ),
+            self.ADD_POPUP_PASSWORD,
+        ]
+
+        for locator in password_locators:
+            if any(input_element.is_displayed() for input_element in self.driver.find_elements(*locator)):
+                return True
+
+        return False
+
+    def toggle_edit_popup_generate_password(self):
+        checkbox_locator = (
+            By.XPATH,
+            "//p-dialog//*[contains(normalize-space(), 'Generate Password')]"
+            "/ancestor::*[self::cc-checkbox-control or self::div][1]//*[contains(@class, 'p-checkbox-box')]",
+        )
+        checkbox = self.wait.until(ec.element_to_be_clickable(checkbox_locator))
+        self.click_element(checkbox)
+        return self
+
+    def edit_popup_dropdown_values(self):
+        return [
+            label.text.strip()
+            for label in self.driver.find_elements(*self.POPUP_DROPDOWN_LABELS)
+            if label.is_displayed() and label.text.strip()
+        ]
+
+    def edit_popup_type_value(self):
+        dropdown_values = self.edit_popup_dropdown_values()
+        return dropdown_values[0] if dropdown_values else ""
+
+    def edit_popup_transport_type_value(self):
+        dropdown_values = self.edit_popup_dropdown_values()
+        return dropdown_values[1] if len(dropdown_values) > 1 else ""
+
+    def popup_contains_value(self, expected_value) -> bool:
+        expected_value = str(expected_value or "").strip()
+        if not expected_value:
+            return True
+
+        return any(expected_value == value or expected_value in value for value in self.popup_field_values())
+
+    def is_paginator_button_disabled(self, locator):
+        button = self.wait.until(ec.presence_of_element_located(locator))
+        classes = button.get_attribute("class") or ""
+        return bool(button.get_attribute("disabled")) or "p-disabled" in classes
+
+    def go_to_first_page(self):
+        first_page_button = self.wait.until(ec.presence_of_element_located(self.FIRST_PAGE_BUTTON))
+        if self.is_paginator_button_disabled(self.FIRST_PAGE_BUTTON):
+            return self
+
+        first_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
+        first_page_button.click()
+        if first_row:
+            self.wait.until(ec.staleness_of(first_row))
+        return self
+
+    def go_to_next_page(self):
+        next_page_button = self.wait.until(ec.presence_of_element_located(self.NEXT_PAGE_BUTTON))
+        if self.is_paginator_button_disabled(self.NEXT_PAGE_BUTTON):
+            return False
+
+        first_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
+        next_page_button.click()
+        if first_row:
+            self.wait.until(ec.staleness_of(first_row))
+        return True
+
+    def all_visible_table_records(self):
+        self.go_to_first_page()
+        records = []
+
+        while True:
+            records.extend(self.visible_table_records())
+            if not self.go_to_next_page():
+                break
+
+        return records
 
     def has_single_result_with_extension(self, expected_extension):
         rows = self.visible_table_rows()
@@ -208,7 +493,14 @@ class ExtensionsPage:
             return self
 
         self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_CANCEL)).click()
-        self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
+        try:
+            self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
+        except TimeoutException:
+            ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
+            try:
+                self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
+            except TimeoutException:
+                pass
         return self
 
     def fill_add_popup(self, start, end, password=None):

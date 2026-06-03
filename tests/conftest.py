@@ -12,6 +12,7 @@ from tests.config.automation_config import load_config
 
 
 LOG_FILE = Path(__file__).parent / "logs" / "test_run.log"
+DOWNLOAD_DIR = Path(__file__).parent / "downloads"
 DEFAULT_CHROME_BINARY_PATHS = (
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -151,6 +152,16 @@ def _cached_chromedriver_path():
 
 def _build_chrome_options(run_config):
     options = ChromeOptions()
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    options.add_experimental_option(
+        "prefs",
+        {
+            "download.default_directory": str(DOWNLOAD_DIR.resolve()),
+            "download.prompt_for_download": False,
+            "download.directory_upgrade": True,
+            "safebrowsing.enabled": True,
+        },
+    )
 
     chrome_binary_path = _config_value(run_config, "CHROME_BINARY_PATH", "chrome_binary_path")
     chrome_binary_path = chrome_binary_path or _default_chrome_binary_path()
@@ -182,6 +193,10 @@ def driver():
         service = ChromeService(executable_path=chromedriver_path) if chromedriver_path else None
         driver = webdriver.Chrome(service=service, options=options)
 
+    driver.execute_cdp_cmd(
+        "Page.setDownloadBehavior",
+        {"behavior": "allow", "downloadPath": str(DOWNLOAD_DIR.resolve())},
+    )
     driver.maximize_window()
     yield driver
     driver.quit()
@@ -190,3 +205,12 @@ def driver():
 @pytest.fixture(scope="module")
 def wait(driver):
     return WebDriverWait(driver, 10)
+
+
+@pytest.fixture
+def download_dir():
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    for path in DOWNLOAD_DIR.glob("*"):
+        if path.is_file():
+            path.unlink()
+    return DOWNLOAD_DIR

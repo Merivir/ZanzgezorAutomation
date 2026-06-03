@@ -1,3 +1,4 @@
+import csv
 import pytest
 import time 
 
@@ -14,6 +15,64 @@ from tests.pages.extensions_page import ExtensionsPage
 
 from tests.db.connection import get_db_connection
 from tests.db.extension_queries import get_extension_numbers
+
+
+EXPECTED_EXPORT_COLUMNS = ["Extension", "Real Extension", "Password", "Type", "Transport Type", "Status"]
+EXPORT_COLUMN_ALIASES = {
+    "Extension": "Extension",
+    "Real Extension": "Real Extension",
+    "Password": "Password",
+    "Type": "Type",
+    "Transport type": "Transport Type",
+    "Transport Type": "Transport Type",
+    "Status": "Status",
+}
+
+
+def wait_for_csv_download(download_dir, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        csv_files = list(download_dir.glob("*.csv"))
+        active_downloads = list(download_dir.glob("*.crdownload"))
+        if csv_files and not active_downloads:
+            return max(csv_files, key=lambda path: path.stat().st_mtime)
+        time.sleep(1)
+
+    pytest.fail(f"No CSV file was downloaded to {download_dir}.")
+
+
+def read_csv_rows(csv_path):
+    content = csv_path.read_text(encoding="utf-8-sig").strip()
+    assert content not in {"501", "505"}, f"Export returned server error status in CSV file: {content}"
+    assert not content.startswith(("501", "505")), f"Export returned server error instead of table data: {content[:120]}"
+    assert '"status":5' not in content, f"Export returned server error response instead of CSV table data: {content[:120]}"
+
+    sample = content[:1024]
+    try:
+        dialect = csv.Sniffer().sniff(sample)
+    except csv.Error:
+        dialect = csv.excel
+
+    return list(csv.reader(content.splitlines(), dialect))
+
+
+def column_values(rows, column_name):
+    header = [cell.strip() for cell in rows[0]]
+    column_index = header.index(column_name)
+    return [row[column_index].strip() for row in rows[1:] if len(row) > column_index]
+
+
+def csv_records(rows):
+    header = [cell.strip() for cell in rows[0]]
+    return [dict(zip(header, row)) for row in rows[1:]]
+
+
+def records_by_column(records, column_name):
+    return {record[column_name]: record for record in records if record.get(column_name)}
+
+
+def normalize_record_value(value):
+    return str(value or "").strip()
 
 
 @pytest.fixture(scope="module")
@@ -120,41 +179,170 @@ def test_extension_clear_filters(opened_extensions_page):
 @testcase("808-3036", "Verify Company Extensions: Columns - Visible columns can be changed from dropdown")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_visible_columns_can_be_changed_from_dropdown(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.set_all_column_visibility(True)
+    initial_column_count = opened_extensions_page.visible_table_column_count()
+    assert initial_column_count > 0, "Expected visible table columns before changing column visibility."
+
+    try:
+        opened_extensions_page.open_column_visibility_dropdown()
+        time.sleep(2)
+        assert opened_extensions_page.column_visibility_option_count() == 7, "Expected 7 column visibility options."
+        column_labels = opened_extensions_page.column_visibility_option_labels()
+        opened_extensions_page.close_column_visibility_dropdown()
+        time.sleep(2)
+
+        opened_extensions_page.set_all_column_visibility(False)
+        time.sleep(2)
+        opened_extensions_page.wait_for_visible_table_column_count(0)
+
+        opened_extensions_page.set_columns_visibility(column_labels[:3], True)
+        time.sleep(2)
+        opened_extensions_page.wait_for_visible_table_column_count(3)
+
+        opened_extensions_page.set_columns_visibility(column_labels[3:], True)
+        time.sleep(2)
+        opened_extensions_page.wait_for_visible_table_column_count(initial_column_count)
+    finally:
+        opened_extensions_page.set_all_column_visibility(True)
+        time.sleep(2)
 
 
 @testcase("808-3037", "Verify Company Extensions: Export - Export downloads extension data")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
-def test_export_downloads_extension_data(opened_extensions_page):
-    skip_not_automated_yet()
+def test_export_downloads_extension_data(opened_extensions_page, download_dir):
+    existing_extension_number = str(get_existing_extension_number())
+
+    opened_extensions_page.set_all_column_visibility(True)
+    time.sleep(2)
+
+    opened_extensions_page.export_extensions()
+    time.sleep(2)
+
+    csv_path = wait_for_csv_download(download_dir)
+    rows = read_csv_rows(csv_path)
+
+    assert len(rows) > 1, f"Expected exported CSV to contain header and table data, got: {rows}"
+    header = [cell.strip() for cell in rows[0]]
+    missing_columns = [column for column in EXPECTED_EXPORT_COLUMNS if column not in header]
+    assert not missing_columns, f"Exported CSV is missing columns: {missing_columns}. Header was: {header}"
+
+    exported_extensions = column_values(rows, "Extension")
+    assert existing_extension_number in exported_extensions, (
+        f"Expected existing extension '{existing_extension_number}' to appear in exported CSV. "
+        f"Exported extensions included: {exported_extensions[:10]}"
+    )
+
+    real_extensions = column_values(rows, "Real Extension")
+    assert any(real_extensions), "Expected exported CSV to contain at least one Real Extension value."
 
 
 @testcase("808-3038", "Verify Company Extensions: Export - Export contains records from all pages")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
-def test_export_contains_records_from_all_pages(opened_extensions_page):
-    skip_not_automated_yet()
+def test_export_contains_records_from_all_pages(opened_extensions_page, download_dir):
+    opened_extensions_page.set_all_column_visibility(True)
+    time.sleep(2)
+
+    table_records = opened_extensions_page.all_visible_table_records()
+    time.sleep(2)
+    assert table_records, "Expected visible table records from at least one page before export."
+
+    opened_extensions_page.export_extensions()
+    time.sleep(2)
+
+    csv_path = wait_for_csv_download(download_dir)
+    rows = read_csv_rows(csv_path)
+    exported_records = csv_records(rows)
+    exported_by_extension = records_by_column(exported_records, "Extension")
+
+    missing_extensions = [
+        record["Extension"]
+        for record in table_records
+        if record.get("Extension") not in exported_by_extension
+    ]
+    assert not missing_extensions, (
+        "Exported CSV is missing extensions visible across paginated table pages: "
+        f"{missing_extensions[:10]}"
+    )
+
+    for table_record in table_records:
+        exported_record = exported_by_extension[table_record["Extension"]]
+        for table_column, export_column in EXPORT_COLUMN_ALIASES.items():
+            if table_column not in table_record or export_column not in exported_record:
+                continue
+            assert normalize_record_value(table_record[table_column]) == normalize_record_value(exported_record[export_column]), (
+                f"Exported value mismatch for extension {table_record['Extension']} column {export_column}. "
+                f"Table value: {table_record[table_column]!r}; CSV value: {exported_record[export_column]!r}"
+            )
 
 
 @testcase("808-3039", "Verify Company Extensions: Edit - Edit popup opens with existing record data")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_edit_popup_opens_with_existing_record_data(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.set_all_column_visibility(True)
+    time.sleep(2)
+    opened_extensions_page.go_to_first_page()
+    time.sleep(2)
+
+    first_row_text = opened_extensions_page.first_visible_table_row_text()
+    assert first_row_text, "Expected at least one extension row before opening Edit popup."
+
+    opened_extensions_page.open_first_row_edit_popup()
+    time.sleep(2)
+
+    try:
+        assert opened_extensions_page.is_add_popup_open(), "Edit popup did not open."
+        popup_values = opened_extensions_page.popup_field_values()
+        assert popup_values, "Expected Edit popup to show existing record values."
+
+        popup_password = opened_extensions_page.edit_popup_password_value()
+        assert popup_password in first_row_text, (
+            f"Edit popup Password value is not visible in the selected table row. "
+            f"Popup value: {popup_password!r}; row text: {first_row_text!r}"
+        )
+
+        popup_type = opened_extensions_page.edit_popup_type_value()
+        assert popup_type in first_row_text, (
+            f"Edit popup Type value is not visible in the selected table row. "
+            f"Popup value: {popup_type!r}; row text: {first_row_text!r}"
+        )
+
+        popup_transport_type = opened_extensions_page.edit_popup_transport_type_value()
+        assert popup_transport_type in first_row_text, (
+            f"Edit popup Transport type value is not visible in the selected table row. "
+            f"Popup value: {popup_transport_type!r}; row text: {first_row_text!r}"
+        )
+    finally:
+        time.sleep(2)
+        opened_extensions_page.close_add_popup()
 
 
 @testcase("808-3040", "Verify Company Extensions: Edit - Generate Password checkbox hides password field")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_edit_generate_password_checkbox_hides_password_field(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.set_all_column_visibility(True)
+    time.sleep(2)
+    opened_extensions_page.go_to_first_page()
+    time.sleep(2)
+
+    opened_extensions_page.open_first_row_edit_popup()
+    time.sleep(2)
+
+    try:
+        assert opened_extensions_page.is_add_popup_open(), "Edit popup did not open."
+        assert opened_extensions_page.is_edit_popup_password_visible(), "Password field should be visible before Generate Password is checked."
+
+        opened_extensions_page.toggle_edit_popup_generate_password()
+        time.sleep(2)
+
+        assert not opened_extensions_page.is_edit_popup_password_visible(), "Password field should be hidden after Generate Password is checked."
+    finally:
+        time.sleep(2)
+        opened_extensions_page.close_add_popup()
 
 
 @testcase("808-3041", "Verify Company Extensions: Edit - Existing extension can be edited successfully")
@@ -191,9 +379,12 @@ def test_add_required_fields_validation_works(opened_extensions_page):
     opened_extensions_page.open_add_popup()
     try:
         opened_extensions_page.touch_add_popup_required_fields()
+        time.sleep(2)  # Wait for validation to trigger
         assert opened_extensions_page.is_add_popup_submit_disabled(), "Submit should be disabled when required Add fields are empty."
+        time.sleep(2)  # Wait for validation messages to appear
         assert opened_extensions_page.add_popup_number_fields_are_empty(), "Start and End should stay empty while required validation is shown."
     finally:
+        time.sleep(2)  # Wait before closing the popup to ensure validation messages are visible    
         opened_extensions_page.close_add_popup()
 
 
