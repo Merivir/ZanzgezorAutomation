@@ -348,17 +348,127 @@ def test_edit_generate_password_checkbox_hides_password_field(opened_extensions_
 @testcase("808-3041", "Verify Company Extensions: Edit - Existing extension can be edited successfully")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_existing_extension_can_be_edited_successfully(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.set_all_column_visibility(True)
+    time.sleep(2)
+    opened_extensions_page.go_to_last_page()
+    time.sleep(2)
+
+    original_record = opened_extensions_page.last_visible_table_record()
+    assert original_record, "Expected at least one extension row on the last page before editing."
+    extension_number = original_record["Extension"]
+    updated_password = f"Test{int(time.time())}"
+
+    opened_extensions_page.open_last_row_edit_popup()
+    time.sleep(2)
+
+    try:
+        assert opened_extensions_page.is_add_popup_open(), "Edit popup did not open."
+
+        updated_type = opened_extensions_page.choose_different_extension_type()
+        time.sleep(2)
+        updated_transport_type = opened_extensions_page.choose_different_transport_type()
+        time.sleep(2)
+        opened_extensions_page.set_edit_popup_password(updated_password)
+        time.sleep(2)
+
+        opened_extensions_page.submit_edit_popup()
+        time.sleep(2)
+    finally:
+        if opened_extensions_page.is_add_popup_open():
+            opened_extensions_page.close_add_popup()
+
+    opened_extensions_page.search_for_extension_number(extension_number)
+    time.sleep(2)
+
+    updated_record = opened_extensions_page.first_visible_table_record()
+    assert updated_record, f"Expected edited extension '{extension_number}' to remain visible after saving."
+    assert updated_record["Extension"] == extension_number, (
+        f"Expected to find edited extension '{extension_number}', but found: {updated_record}"
+    )
+    assert updated_record["Type"] == updated_type, (
+        f"Type was not updated in table. Expected {updated_type!r}, got {updated_record['Type']!r}."
+    )
+    assert updated_record["Transport type"] == updated_transport_type, (
+        "Transport type was not updated in table. "
+        f"Expected {updated_transport_type!r}, got {updated_record['Transport type']!r}."
+    )
+
+    opened_extensions_page.open_first_row_edit_popup()
+    time.sleep(2)
+    try:
+        saved_password = opened_extensions_page.edit_popup_password_value()
+        assert saved_password == updated_password, (
+            f"Password was not updated in Edit popup. Expected {updated_password!r}, got {saved_password!r}."
+        )
+    finally:
+        time.sleep(2)
+        opened_extensions_page.close_add_popup()
+        opened_extensions_page.clear_search_and_submit()
+        time.sleep(2)
 
 
 @testcase("808-3042", "Verify Company Extensions: Edit - Cancel keeps original extension values")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_edit_cancel_keeps_original_extension_values(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.set_all_column_visibility(True)
+    time.sleep(2)
+    opened_extensions_page.go_to_last_page()
+    time.sleep(2)
+
+    original_record = opened_extensions_page.last_visible_table_record()
+    assert original_record, "Expected at least one extension row on the last page before editing."
+    extension_number = original_record["Extension"]
+
+    opened_extensions_page.open_last_row_edit_popup()
+    time.sleep(2)
+
+    try:
+        assert opened_extensions_page.is_add_popup_open(), "Edit popup did not open."
+        original_password = opened_extensions_page.edit_popup_password_value()
+        assert original_password, "Expected existing Password value before testing Cancel."
+
+        opened_extensions_page.choose_different_extension_type()
+        time.sleep(2)
+        opened_extensions_page.choose_different_transport_type()
+        time.sleep(2)
+        opened_extensions_page.set_edit_popup_password(f"Cancel{int(time.time())}")
+        time.sleep(2)
+        opened_extensions_page.close_add_popup()
+        time.sleep(2)
+    finally:
+        if opened_extensions_page.is_add_popup_open():
+            opened_extensions_page.close_add_popup()
+
+    opened_extensions_page.search_for_extension_number(extension_number)
+    time.sleep(2)
+
+    current_record = opened_extensions_page.first_visible_table_record()
+    assert current_record, f"Expected extension '{extension_number}' to remain visible after cancelling Edit."
+    assert current_record["Extension"] == extension_number, (
+        f"Expected to find extension '{extension_number}', but found: {current_record}"
+    )
+    assert current_record["Type"] == original_record["Type"], (
+        f"Type changed after Cancel. Expected {original_record['Type']!r}, got {current_record['Type']!r}."
+    )
+    assert current_record["Transport type"] == original_record["Transport type"], (
+        "Transport type changed after Cancel. "
+        f"Expected {original_record['Transport type']!r}, got {current_record['Transport type']!r}."
+    )
+
+    opened_extensions_page.open_first_row_edit_popup()
+    time.sleep(2)
+    try:
+        current_password = opened_extensions_page.edit_popup_password_value()
+        assert current_password == original_password, (
+            f"Password changed after Cancel. Expected {original_password!r}, got {current_password!r}."
+        )
+    finally:
+        time.sleep(2)
+        opened_extensions_page.close_add_popup()
+        opened_extensions_page.clear_search_and_submit()
+        time.sleep(2)
 
 
 @testcase("808-3043", "Verify Company Extensions: Add - Add popup opens correctly")
@@ -391,9 +501,23 @@ def test_add_required_fields_validation_works(opened_extensions_page):
 @testcase("808-3045", "Verify Company Extensions: Add - Generate Password checkbox hides password field in Add popup")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_add_generate_password_checkbox_hides_password_field(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.clear_search_and_submit()
+    time.sleep(2)
+    opened_extensions_page.open_add_popup()
+    time.sleep(2)
+
+    try:
+        assert opened_extensions_page.is_add_popup_open(), "Add popup did not open."
+        assert opened_extensions_page.is_add_popup_password_visible(), "Password field should be visible before Generate Password is checked."
+
+        opened_extensions_page.toggle_add_popup_generate_password()
+        time.sleep(2)
+
+        assert not opened_extensions_page.is_add_popup_password_visible(), "Password field should be hidden after Generate Password is checked."
+    finally:
+        time.sleep(2)
+        opened_extensions_page.close_add_popup()
 
 
 @testcase("808-3046", "Verify Company Extensions: Add - New extension range can be added successfully")
@@ -401,6 +525,8 @@ def test_add_generate_password_checkbox_hides_password_field(opened_extensions_p
 @pytest.mark.extensions
 def test_adding_non_existent_extension(opened_extensions_page):
     non_existing_extension_number = get_non_existing_extension_number()
+    opened_extensions_page.clear_search_and_submit()
+    time.sleep(2)
     opened_extensions_page.open_add_popup()
     time.sleep(2)
     opened_extensions_page.choose_extension_type("pjsip")
@@ -411,16 +537,33 @@ def test_adding_non_existent_extension(opened_extensions_page):
     time.sleep(2)
     opened_extensions_page.submit_add_popup()
     time.sleep(2)  # Wait for the new extension to be added and the table to refresh
-    opened_extensions_page.go_to_last_page()
-    assert opened_extensions_page.has_visible_extension(non_existing_extension_number), f"Expected to find the newly added extension '{non_existing_extension_number}' on the last page, but it was not found."
+    opened_extensions_page.clear_search_and_submit()
+    time.sleep(2)
+    opened_extensions_page.search_for_extension_number(non_existing_extension_number)
+    time.sleep(2)
+    assert opened_extensions_page.has_visible_extension(non_existing_extension_number), (
+        f"Expected to find the newly added extension '{non_existing_extension_number}' after searching, but it was not found."
+    )
 
 
 @testcase("808-3047", "Verify Company Extensions: Mobile - Mobile popup opens for selected extension")
 @pytest.mark.administration
 @pytest.mark.extensions
-@not_automated
 def test_mobile_popup_opens_for_selected_extension(opened_extensions_page):
-    skip_not_automated_yet()
+    opened_extensions_page.clear_search_and_submit()
+    time.sleep(2)
+    opened_extensions_page.go_to_first_page()
+    time.sleep(2)
+
+    opened_extensions_page.open_first_row_mobile_popup()
+    time.sleep(2)
+
+    try:
+        assert opened_extensions_page.is_mobile_popup_open(), "Mobile popup did not open."
+        assert opened_extensions_page.has_mobile_popup_controls(), "Not all Mobile popup controls are visible."
+    finally:
+        time.sleep(2)
+        opened_extensions_page.close_mobile_popup()
 
 
 @testcase("808-3048", "Verify Company Extensions: Mobile - Number can be added and active phone selected")
