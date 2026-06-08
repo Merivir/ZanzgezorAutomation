@@ -21,8 +21,7 @@ CACHED_CHROMEDRIVER_DIR = Path.home() / ".cache" / "selenium" / "chromedriver" /
 
 
 def _write_log(message):
-    with LOG_FILE.open("a", encoding="utf-8") as log_file:
-        log_file.write(message + "\n")
+    print(message, flush=True)
 
 
 def _testlink_details(item):
@@ -43,8 +42,6 @@ def _skip_reason(report):
 
 
 def pytest_configure(config):
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LOG_FILE.write_text("", encoding="utf-8")
     config.test_run_results = []
 
     started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -105,7 +102,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     _write_log(f"Failed: {failed}")
     _write_log(f"Skipped: {skipped}")
     _write_log(f"Exit status: {exitstatus}")
-    terminalreporter.write_line(f"Detailed test log: {LOG_FILE}")
 
 
 def _config_value(run_config, env_name, config_name):

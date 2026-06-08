@@ -16,7 +16,7 @@ class ExtensionsPage:
     EXPORT_BUTTON = (By.XPATH, "//*[@id='pn_id_7']/div[1]/div/div[2]/div/cc-button/p-button/button")
     EXPORT_CSV_OPTION = (By.XPATH, "//div[contains(@class, 'export-table-items')]//*[normalize-space()='CSV']")
     ADD_BUTTON = (By.XPATH, "//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add']]")
-    DELETE_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[3]/p-button/button")
+    DELETE_BUTTON = (By.XPATH, "//cc-dynamic-actions//button[.//span[normalize-space()='Delete'] or .//i[normalize-space()='delete']]")
     PUBLISH_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[1]/p-button/button")
     
     # Table locators
@@ -28,11 +28,33 @@ class ExtensionsPage:
     TABLE_ROWS = (By.XPATH, "//table//tbody/tr")
     ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit']]")
     ROW_MOBILE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='phone']]")
+    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete']]")
     EMPTY_TABLE_MESSAGE = (By.XPATH, "//*[@id=\"pn_id_7-table\"]/tbody/tr/td")
     FIRST_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='First Page']")
     NEXT_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Next Page']")
     LAST_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Last Page']")
+    CURRENT_PAGE_BUTTON = (By.XPATH, "//button[contains(@class, 'p-paginator-page') and contains(@class, 'p-highlight')]")
+    PREVIOUS_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Previous Page']")
     DROPDOWN_PANEL = (By.XPATH, "//div[contains(@class, 'p-dropdown-panel')]")
+
+    # Confirmation dialog locators
+    CONFIRM_DIALOG = (
+        By.XPATH,
+        "//div[(@role='alertdialog' or contains(@class, 'p-confirm-dialog')) and contains(@class, 'p-dialog')]",
+    )
+    CONFIRM_CANCEL = (
+        By.XPATH,
+        "(//div[(@role='alertdialog' or contains(@class, 'p-confirm-dialog')) and contains(@class, 'p-dialog')]"
+        "//button[contains(normalize-space(), 'Cancel') or contains(normalize-space(), 'No') "
+        "or contains(normalize-space(), 'Reject')])[last()]",
+    )
+    CONFIRM_ACCEPT = (
+        By.XPATH,
+        "(//div[(@role='alertdialog' or contains(@class, 'p-confirm-dialog')) and contains(@class, 'p-dialog')]"
+        "//button[contains(normalize-space(), 'Submit') or contains(normalize-space(), 'Yes') "
+        "or contains(normalize-space(), 'Ok') or contains(normalize-space(), 'Delete') "
+        "or contains(normalize-space(), 'Accept')])[last()]",
+    )
 
     # Add popup locators
     ADD_POPUP = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/cc-dynamic-popup/p-dialog/div/div")
@@ -90,7 +112,11 @@ class ExtensionsPage:
         self.driver = driver
         self.wait = wait
 
+    def log_action(self, message):
+        print(f"[Extensions] {message}", flush=True)
+
     def wait_until_loaded(self):
+        self.log_action("Wait until Extensions page is loaded")
         # the presence of the header is our signal that the page is ready for interaction.
         self.wait.until(ec.presence_of_element_located(self.EXTENSIONS_HEADER))
 
@@ -199,22 +225,30 @@ class ExtensionsPage:
         )
     
     def search_for_extension_number(self, extension_number):
+        self.log_action(f"Search extension: {extension_number}")
         search_input = self.wait.until(ec.element_to_be_clickable(self.SEARCH_INPUT))
-        search_input.clear()
+        search_input.send_keys(Keys.CONTROL, "a")
+        search_input.send_keys(Keys.BACKSPACE)
         search_input.send_keys(str(extension_number))
-        self.wait.until(ec.element_to_be_clickable(self.SEARCH_BUTTON)).click()
+        self.log_action("Click Search")
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.SEARCH_BUTTON)))
         return self  # Return the page object to allow for method chaining in tests
 
     def clear_search_and_submit(self):
+        self.log_action("Clear search")
         search_input = self.wait.until(ec.element_to_be_clickable(self.SEARCH_INPUT))
-        search_input.clear()
-        self.wait.until(ec.element_to_be_clickable(self.SEARCH_BUTTON)).click()
+        search_input.send_keys(Keys.CONTROL, "a")
+        search_input.send_keys(Keys.BACKSPACE)
+        self.log_action("Click Search with empty value")
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.SEARCH_BUTTON)))
         return self
 
     def export_extensions(self):
+        self.log_action("Click Export")
         export_button = self.wait.until(ec.presence_of_element_located(self.EXPORT_BUTTON))
         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", export_button)
         self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_BUTTON)))
+        self.log_action("Click CSV export option")
         self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_CSV_OPTION)))
         return self
     
@@ -246,6 +280,7 @@ class ExtensionsPage:
         if self.is_column_visibility_dropdown_open():
             return self
 
+        self.log_action("Open column visibility dropdown")
         self.wait.until(ec.element_to_be_clickable(self.COLUMN_TOGGLE)).click()
         self.wait.until(ec.visibility_of_element_located(self.COLUMN_PANEL))
         self.wait.until(lambda _: len(self.column_visibility_options()) > 0)
@@ -255,6 +290,7 @@ class ExtensionsPage:
         if not self.is_column_visibility_dropdown_open():
             return self
 
+        self.log_action("Close column visibility dropdown")
         ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
         try:
             self.wait.until(ec.invisibility_of_element_located(self.COLUMN_PANEL))
@@ -290,6 +326,7 @@ class ExtensionsPage:
         )
         option = self.wait.until(ec.element_to_be_clickable(option_locator))
         if self.is_column_option_selected(option) != visible:
+            self.log_action(f"Set column '{label}' visible={visible}")
             self.click_element(option)
             self.wait.until(lambda _: self.driver.find_element(*option_locator).get_attribute("aria-checked") == str(visible).lower())
         return self
@@ -372,20 +409,53 @@ class ExtensionsPage:
         return self.open_row_edit_popup(row)
 
     def open_row_edit_popup(self, row):
+        self.log_action("Click row Edit")
         edit_button = row.find_element(*self.ROW_EDIT_BUTTON)
         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", edit_button)
         self.click_element(edit_button)
         self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
         self.wait.until(lambda _: self.is_add_popup_open())
+        self.log_action("Edit popup opened")
+        return self
+
+    def open_first_row_delete_confirmation(self):
+        self.log_action("Click row Delete")
+        row = self.wait.until(lambda _: self.visible_table_rows()[0] if self.visible_table_rows() else False)
+        delete_button = row.find_element(*self.ROW_DELETE_BUTTON)
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", delete_button)
+        self.click_element(delete_button)
+        self.wait.until(ec.visibility_of_element_located(self.CONFIRM_DIALOG))
+        self.log_action("Delete confirmation opened")
+        return self
+
+    def is_delete_confirmation_open(self):
+        return (
+            self.has_visible_element(self.CONFIRM_DIALOG)
+            and self.has_visible_element(self.CONFIRM_CANCEL)
+            and self.has_visible_element(self.CONFIRM_ACCEPT)
+        )
+
+    def cancel_delete_confirmation(self):
+        self.log_action("Click confirmation Reject/Cancel")
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.CONFIRM_CANCEL)))
+        self.wait.until(ec.invisibility_of_element_located(self.CONFIRM_DIALOG))
+        return self
+
+    def confirm_delete_confirmation(self):
+        self.log_action("Click confirmation Accept")
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.CONFIRM_ACCEPT)))
+        self.wait.until(ec.invisibility_of_element_located(self.CONFIRM_DIALOG))
         return self
 
     def open_first_row_mobile_popup(self):
+        self.log_action("Click row Mobile")
         row = self.wait.until(lambda _: self.visible_table_rows()[0] if self.visible_table_rows() else False)
         mobile_button = row.find_element(*self.ROW_MOBILE_BUTTON)
         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", mobile_button)
         self.click_element(mobile_button)
         self.wait.until(ec.visibility_of_element_located(self.MOBILE_POPUP))
         self.wait.until(lambda _: self.is_mobile_popup_open())
+        self.log_action("Mobile popup opened")
         return self
 
     def is_mobile_popup_open(self):
@@ -417,6 +487,7 @@ class ExtensionsPage:
         if not self.is_mobile_popup_open():
             return self
 
+        self.log_action("Click Mobile popup Cancel")
         self.click_element(self.wait.until(ec.element_to_be_clickable(self.MOBILE_CANCEL)))
         try:
             self.wait.until(ec.invisibility_of_element_located(self.MOBILE_POPUP))
@@ -471,6 +542,7 @@ class ExtensionsPage:
         return input_values[-1] if input_values else ""
 
     def set_edit_popup_password(self, password):
+        self.log_action("Set Edit popup password")
         password_locators = [
             (
                 By.XPATH,
@@ -513,6 +585,7 @@ class ExtensionsPage:
         return False
 
     def toggle_edit_popup_generate_password(self):
+        self.log_action("Click Edit popup Generate Password checkbox")
         checkbox_locator = (
             By.XPATH,
             "//p-dialog//*[contains(normalize-space(), 'Generate Password')]"
@@ -530,6 +603,7 @@ class ExtensionsPage:
         return any(input_element.is_displayed() for input_element in self.driver.find_elements(*password_locator))
 
     def toggle_add_popup_generate_password(self):
+        self.log_action("Click Add popup Generate Password checkbox")
         checkbox_locator = (By.XPATH, "//*[@id='generatePasswords']//*[contains(@class, 'p-checkbox-box')]")
         checkbox = self.wait.until(ec.element_to_be_clickable(checkbox_locator))
         self.driver.execute_script("arguments[0].click();", checkbox)
@@ -566,6 +640,7 @@ class ExtensionsPage:
         ]
 
     def choose_first_different_dropdown_option(self, dropdown_locators, current_value):
+        self.log_action(f"Open dropdown to choose value different from '{current_value}'")
         self.click_first_available(dropdown_locators)
         current_value = str(current_value or "").strip().lower()
         option_labels = self.dropdown_option_labels()
@@ -578,6 +653,7 @@ class ExtensionsPage:
         return new_value
 
     def choose_open_dropdown_option(self, option_text):
+        self.log_action(f"Choose dropdown option: {option_text}")
         lower_option_text = option_text.lower()
         option_locator = (
             By.XPATH,
@@ -610,9 +686,19 @@ class ExtensionsPage:
         classes = button.get_attribute("class") or ""
         return bool(button.get_attribute("disabled")) or "p-disabled" in classes
 
+    def current_page_number(self):
+        buttons = self.driver.find_elements(*self.CURRENT_PAGE_BUTTON)
+        if not buttons:
+            return None
+
+        text = buttons[0].text.strip()
+        return int(text) if text.isdigit() else text
+
     def go_to_first_page(self):
+        self.log_action("Click paginator First Page")
         first_page_button = self.wait.until(ec.presence_of_element_located(self.FIRST_PAGE_BUTTON))
         if self.is_paginator_button_disabled(self.FIRST_PAGE_BUTTON):
+            self.log_action("First Page is disabled")
             return self
 
         first_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
@@ -622,12 +708,27 @@ class ExtensionsPage:
         return self
 
     def go_to_next_page(self):
+        self.log_action("Click paginator Next Page")
         next_page_button = self.wait.until(ec.presence_of_element_located(self.NEXT_PAGE_BUTTON))
         if self.is_paginator_button_disabled(self.NEXT_PAGE_BUTTON):
+            self.log_action("Next Page is disabled")
             return False
 
         first_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
         next_page_button.click()
+        if first_row:
+            self.wait.until(ec.staleness_of(first_row))
+        return True
+
+    def go_to_previous_page(self):
+        self.log_action("Click paginator Previous Page")
+        previous_page_button = self.wait.until(ec.presence_of_element_located(self.PREVIOUS_PAGE_BUTTON))
+        if self.is_paginator_button_disabled(self.PREVIOUS_PAGE_BUTTON):
+            self.log_action("Previous Page is disabled")
+            return False
+
+        first_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
+        previous_page_button.click()
         if first_row:
             self.wait.until(ec.staleness_of(first_row))
         return True
@@ -667,16 +768,30 @@ class ExtensionsPage:
         if self.is_add_popup_open():
             return self
 
+        self.log_action("Click Add")
         self.wait.until(ec.element_to_be_clickable(self.ADD_BUTTON)).click()
         self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
         self.wait.until(lambda _: self.is_add_popup_open())
         self.wait.until(lambda _: self.has_add_popup_controls())
+        self.log_action("Add popup opened")
+        return self
+
+    def open_bottom_delete_popup(self):
+        self.log_action("Click bottom Delete")
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.DELETE_BUTTON)))
+        self.wait.until(ec.visibility_of_element_located(self.CONFIRM_DIALOG))
+        self.wait.until(lambda _: self.is_delete_confirmation_open())
+        self.confirm_delete_confirmation()
+        self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
+        self.wait.until(lambda _: self.is_add_popup_open())
+        self.log_action("Bottom delete range popup opened")
         return self
 
     def close_add_popup(self):
         if not self.is_add_popup_open():
             return self
 
+        self.log_action("Click popup Cancel")
         self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_CANCEL)).click()
         try:
             self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
@@ -689,10 +804,12 @@ class ExtensionsPage:
         return self
 
     def fill_add_popup(self, start, end, password=None):
+        self.log_action(f"Fill popup range start={start}, end={end}")
         self.click_add_popup_start_button(start)
         self.click_add_popup_end_button(end)
 
         if password:
+            self.log_action("Fill popup password")
             self.driver.find_element(*self.ADD_POPUP_PASSWORD).send_keys(password)
 
     def touch_and_blur(self, locator, clear=False):
@@ -746,6 +863,7 @@ class ExtensionsPage:
         if element is None:
             raise TimeoutException(f"None of these locators became clickable: {locators}")
 
+        self.log_action("Click first available matching control")
         self.click_element(element)
         return element
 
@@ -765,6 +883,7 @@ class ExtensionsPage:
             self.driver.execute_script("arguments[0].click();", element)
 
     def choose_dropdown_option(self, dropdown_locators, option_text):
+        self.log_action(f"Open dropdown for option: {option_text}")
         self.click_first_available(dropdown_locators)
         self.choose_open_dropdown_option(option_text)
         return self
@@ -780,15 +899,27 @@ class ExtensionsPage:
         return self.choose_dropdown_option(self.ADD_POPUP_TRANSPORT_TYPE, transport_type)
 
     def click_generate_passwords(self):
+        self.log_action("Click Generate Passwords checkbox")
         self.driver.find_element(*self.ADD_POPUP_GENERATE_PASSWORDS).click()
 
     def click_add_popup_start_button(self, start):
-        self.driver.find_element(*self.ADD_POPUP_START_INPUT).send_keys(start)
+        self.log_action(f"Type range start: {start}")
+        start_input = self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_START_INPUT))
+        start_input.send_keys(Keys.CONTROL, "a")
+        start_input.send_keys(Keys.BACKSPACE)
+        start_input.send_keys(str(start))
+        start_input.send_keys(Keys.TAB)
 
     def click_add_popup_end_button(self, end):
-        self.driver.find_element(*self.ADD_POPUP_END_INPUT).send_keys(end)
+        self.log_action(f"Type range end: {end}")
+        end_input = self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_END_INPUT))
+        end_input.send_keys(Keys.CONTROL, "a")
+        end_input.send_keys(Keys.BACKSPACE)
+        end_input.send_keys(str(end))
+        end_input.send_keys(Keys.TAB)
     
     def submit_add_popup(self):
+        self.log_action("Click popup Submit")
         submit_button = self.driver.find_element(*self.ADD_POPUP_SUBMIT)
         self.click_element(submit_button)
 
@@ -797,9 +928,23 @@ class ExtensionsPage:
         self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
         return self
 
+    def submit_popup_and_wait_closed(self):
+        self.log_action("Submit popup and wait until it closes")
+        self.submit_add_popup()
+        self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
+        return self
+
+    def click_publish(self):
+        self.log_action("Click Publish")
+        publish_button = self.wait.until(ec.element_to_be_clickable(self.PUBLISH_BUTTON))
+        self.click_element(publish_button)
+        return self
+
     def go_to_last_page(self):
+        self.log_action("Click paginator Last Page")
         last_page_button = self.wait.until(ec.presence_of_element_located(self.LAST_PAGE_BUTTON))
         if last_page_button.get_attribute("disabled") or "p-disabled" in last_page_button.get_attribute("class"):
+            self.log_action("Last Page is disabled")
             return self
 
         first_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
