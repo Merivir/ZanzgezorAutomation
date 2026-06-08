@@ -28,6 +28,9 @@ EXPORT_COLUMN_ALIASES = {
     "Status": "Status",
 }
 
+DISPOSABLE_SINGLE_EXTENSION = None
+DISPOSABLE_EXTENSION_RANGE = None
+
 
 def wait_for_csv_download(download_dir, timeout=20):
     deadline = time.time() + timeout
@@ -168,6 +171,37 @@ def add_extension_range_from_ui(extensions_page, start_extension, end_extension,
     return str(start_extension), str(end_extension)
 
 
+def get_or_create_single_extension(extensions_page):
+    global DISPOSABLE_SINGLE_EXTENSION
+
+    if DISPOSABLE_SINGLE_EXTENSION is None:
+        DISPOSABLE_SINGLE_EXTENSION = add_extension_from_ui(
+            extensions_page,
+            get_non_existing_extension_number(),
+        )
+    else:
+        extensions_page.search_for_extension_number(DISPOSABLE_SINGLE_EXTENSION)
+        time.sleep(2)
+
+    assert extensions_page.has_visible_extension(DISPOSABLE_SINGLE_EXTENSION), (
+        f"Expected disposable single extension '{DISPOSABLE_SINGLE_EXTENSION}' to be visible."
+    )
+    return DISPOSABLE_SINGLE_EXTENSION
+
+
+def get_or_create_extension_range(extensions_page, size=5):
+    global DISPOSABLE_EXTENSION_RANGE
+
+    if DISPOSABLE_EXTENSION_RANGE is None:
+        start_extension, end_extension = get_non_existing_extension_range(size=size)
+        DISPOSABLE_EXTENSION_RANGE = add_extension_range_from_ui(
+            extensions_page,
+            start_extension,
+            end_extension,
+        )
+    return DISPOSABLE_EXTENSION_RANGE
+
+
 def row_delete_extension_range_from_ui(extensions_page, start_extension, end_extension):
     for extension_number in range(int(start_extension), int(end_extension) + 1):
         row_delete_extension_from_ui(extensions_page, extension_number)
@@ -267,31 +301,39 @@ def test_extension_clear_filters(opened_extensions_page):
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_visible_columns_can_be_changed_from_dropdown(opened_extensions_page):
-    opened_extensions_page.set_all_column_visibility(True)
+    if opened_extensions_page.visible_table_column_count() < 7:
+        opened_extensions_page.set_all_column_visibility(True)
+
     initial_column_count = opened_extensions_page.visible_table_column_count()
     assert initial_column_count > 0, "Expected visible table columns before changing column visibility."
 
+    column_labels = []
     try:
         opened_extensions_page.open_column_visibility_dropdown()
         time.sleep(2)
         assert opened_extensions_page.column_visibility_option_count() == 7, "Expected 7 column visibility options."
         column_labels = opened_extensions_page.column_visibility_option_labels()
-        opened_extensions_page.close_column_visibility_dropdown()
-        time.sleep(2)
 
-        opened_extensions_page.set_all_column_visibility(False)
+        for label in column_labels:
+            opened_extensions_page.set_column_option_visibility(label, False)
         time.sleep(2)
         opened_extensions_page.wait_for_visible_table_column_count(0)
 
-        opened_extensions_page.set_columns_visibility(column_labels[:3], True)
+        for label in column_labels[:3]:
+            opened_extensions_page.set_column_option_visibility(label, True)
         time.sleep(2)
         opened_extensions_page.wait_for_visible_table_column_count(3)
 
-        opened_extensions_page.set_columns_visibility(column_labels[3:], True)
+        for label in column_labels[3:]:
+            opened_extensions_page.set_column_option_visibility(label, True)
         time.sleep(2)
         opened_extensions_page.wait_for_visible_table_column_count(initial_column_count)
     finally:
-        opened_extensions_page.set_all_column_visibility(True)
+        if not opened_extensions_page.is_column_visibility_dropdown_open():
+            opened_extensions_page.open_column_visibility_dropdown()
+        for label in column_labels:
+            opened_extensions_page.set_column_option_visibility(label, True)
+        opened_extensions_page.close_column_visibility_dropdown()
         time.sleep(2)
 
 
@@ -300,9 +342,6 @@ def test_visible_columns_can_be_changed_from_dropdown(opened_extensions_page):
 @pytest.mark.extensions
 def test_export_downloads_extension_data(opened_extensions_page, download_dir):
     existing_extension_number = str(get_existing_extension_number())
-
-    opened_extensions_page.set_all_column_visibility(True)
-    time.sleep(2)
 
     opened_extensions_page.export_extensions()
     time.sleep(2)
@@ -329,9 +368,6 @@ def test_export_downloads_extension_data(opened_extensions_page, download_dir):
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_export_contains_records_from_all_pages(opened_extensions_page, download_dir):
-    opened_extensions_page.set_all_column_visibility(True)
-    time.sleep(2)
-
     table_records = opened_extensions_page.all_visible_table_records()
     time.sleep(2)
     assert table_records, "Expected visible table records from at least one page before export."
@@ -369,8 +405,6 @@ def test_export_contains_records_from_all_pages(opened_extensions_page, download
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_edit_popup_opens_with_existing_record_data(opened_extensions_page):
-    opened_extensions_page.set_all_column_visibility(True)
-    time.sleep(2)
     opened_extensions_page.go_to_first_page()
     time.sleep(2)
 
@@ -411,12 +445,7 @@ def test_edit_popup_opens_with_existing_record_data(opened_extensions_page):
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_edit_generate_password_checkbox_hides_password_field(opened_extensions_page):
-    extension_number = add_extension_from_ui(opened_extensions_page, get_non_existing_extension_number(), password="Test1234")
-
-    opened_extensions_page.set_all_column_visibility(True)
-    time.sleep(2)
-    opened_extensions_page.search_for_extension_number(extension_number)
-    time.sleep(2)
+    extension_number = get_or_create_single_extension(opened_extensions_page)
 
     edit_record = opened_extensions_page.first_visible_table_record()
     assert edit_record and edit_record["Extension"] == extension_number, (
@@ -454,19 +483,13 @@ def test_edit_generate_password_checkbox_hides_password_field(opened_extensions_
     finally:
         time.sleep(2)
         opened_extensions_page.close_add_popup()
-        row_delete_extension_from_ui(opened_extensions_page, extension_number)
 
 
 @testcase("808-3041", "Verify Company Extensions: Edit - Existing extension can be edited successfully")
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_existing_extension_can_be_edited_successfully(opened_extensions_page):
-    extension_number = add_extension_from_ui(opened_extensions_page, get_non_existing_extension_number(), password="Test1234")
-
-    opened_extensions_page.set_all_column_visibility(True)
-    time.sleep(2)
-    opened_extensions_page.search_for_extension_number(extension_number)
-    time.sleep(2)
+    extension_number = get_or_create_single_extension(opened_extensions_page)
 
     original_record = opened_extensions_page.last_visible_table_record()
     assert original_record and original_record["Extension"] == extension_number, (
@@ -520,19 +543,13 @@ def test_existing_extension_can_be_edited_successfully(opened_extensions_page):
     finally:
         time.sleep(2)
         opened_extensions_page.close_add_popup()
-        row_delete_extension_from_ui(opened_extensions_page, extension_number)
 
 
 @testcase("808-3042", "Verify Company Extensions: Edit - Cancel keeps original extension values")
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_edit_cancel_keeps_original_extension_values(opened_extensions_page):
-    extension_number = add_extension_from_ui(opened_extensions_page, get_non_existing_extension_number(), password="Test1234")
-
-    opened_extensions_page.set_all_column_visibility(True)
-    time.sleep(2)
-    opened_extensions_page.search_for_extension_number(extension_number)
-    time.sleep(2)
+    extension_number = get_or_create_single_extension(opened_extensions_page)
 
     original_record = opened_extensions_page.last_visible_table_record()
     assert original_record and original_record["Extension"] == extension_number, (
@@ -585,7 +602,6 @@ def test_edit_cancel_keeps_original_extension_values(opened_extensions_page):
     finally:
         time.sleep(2)
         opened_extensions_page.close_add_popup()
-        row_delete_extension_from_ui(opened_extensions_page, extension_number)
 
 
 @testcase("808-3043", "Verify Company Extensions: Add - Add popup opens correctly")
@@ -641,36 +657,23 @@ def test_add_generate_password_checkbox_hides_password_field(opened_extensions_p
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_adding_non_existent_extension(opened_extensions_page):
-    extension_number = add_extension_from_ui(opened_extensions_page, get_non_existing_extension_number())
-    try:
-        opened_extensions_page.search_for_extension_number(extension_number)
-        time.sleep(2)
-        assert opened_extensions_page.has_visible_extension(extension_number), (
-            f"Expected to find the newly added extension '{extension_number}' after searching, but it was not found."
-        )
-    finally:
-        row_delete_extension_from_ui(opened_extensions_page, extension_number)
+    extension_number = get_or_create_single_extension(opened_extensions_page)
+    assert opened_extensions_page.has_visible_extension(extension_number), (
+        f"Expected to find the newly added extension '{extension_number}' after searching, but it was not found."
+    )
 
 
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_adding_non_existent_extension_range(opened_extensions_page):
-    start_extension, end_extension = get_non_existing_extension_range(size=5)
-    start_extension, end_extension = add_extension_range_from_ui(
-        opened_extensions_page,
-        start_extension,
-        end_extension,
-    )
+    start_extension, end_extension = get_or_create_extension_range(opened_extensions_page, size=5)
 
-    try:
-        for extension_number in range(int(start_extension), int(end_extension) + 1):
-            opened_extensions_page.search_for_extension_number(extension_number)
-            time.sleep(2)
-            assert opened_extensions_page.has_visible_extension(extension_number), (
-                f"Expected extension '{extension_number}' from added range to be visible."
-            )
-    finally:
-        bottom_delete_extension_range_from_ui(opened_extensions_page, start_extension, end_extension)
+    for extension_number in range(int(start_extension), int(end_extension) + 1):
+        opened_extensions_page.search_for_extension_number(extension_number)
+        time.sleep(2)
+        assert opened_extensions_page.has_visible_extension(extension_number), (
+            f"Expected extension '{extension_number}' from added range to be visible."
+        )
 
 
 @testcase("808-3047", "Verify Company Extensions: Mobile - Mobile popup opens for selected extension")
@@ -713,7 +716,7 @@ def test_mobile_cancel_keeps_phone_data_unchanged(opened_extensions_page):
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_row_delete_cancel_keeps_record(opened_extensions_page):
-    extension_number = add_extension_from_ui(opened_extensions_page, get_non_existing_extension_number())
+    extension_number = get_or_create_single_extension(opened_extensions_page)
 
     assert opened_extensions_page.has_visible_extension(extension_number), (
         f"Expected disposable extension '{extension_number}' before opening row delete confirmation."
@@ -732,10 +735,6 @@ def test_row_delete_cancel_keeps_record(opened_extensions_page):
         f"Extension '{extension_number}' disappeared after cancelling row delete."
     )
 
-    opened_extensions_page.open_first_row_delete_confirmation()
-    time.sleep(2)
-    opened_extensions_page.confirm_delete_confirmation()
-    time.sleep(2)
     opened_extensions_page.clear_search_and_submit()
     time.sleep(2)
 
@@ -744,7 +743,9 @@ def test_row_delete_cancel_keeps_record(opened_extensions_page):
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_row_delete_removes_selected_extension(opened_extensions_page):
-    extension_number = add_extension_from_ui(opened_extensions_page, get_non_existing_extension_number())
+    global DISPOSABLE_SINGLE_EXTENSION
+
+    extension_number = get_or_create_single_extension(opened_extensions_page)
 
     assert opened_extensions_page.has_visible_extension(extension_number), (
         f"Expected disposable extension '{extension_number}' before row delete."
@@ -762,18 +763,14 @@ def test_row_delete_removes_selected_extension(opened_extensions_page):
     )
     opened_extensions_page.clear_search_and_submit()
     time.sleep(2)
+    DISPOSABLE_SINGLE_EXTENSION = None
 
 
 @testcase("808-3052", "Verify Company Extensions: Delete - Bottom delete popup opens for extension range")
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_bottom_delete_popup_opens_for_extension_range(opened_extensions_page):
-    start_extension, end_extension = get_non_existing_extension_range(size=5)
-    start_extension, end_extension = add_extension_range_from_ui(
-        opened_extensions_page,
-        start_extension,
-        end_extension,
-    )
+    start_extension, end_extension = get_or_create_extension_range(opened_extensions_page, size=5)
 
     opened_extensions_page.open_bottom_delete_popup()
     time.sleep(2)
@@ -792,19 +789,12 @@ def test_bottom_delete_popup_opens_for_extension_range(opened_extensions_page):
         f"Extension '{start_extension}' disappeared after opening and rejecting bottom delete confirmation."
     )
 
-    bottom_delete_extension_range_from_ui(opened_extensions_page, start_extension, end_extension)
-
 
 @testcase("808-3053", "Verify Company Extensions: Delete - Cancel in bottom delete keeps extension range")
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_bottom_delete_cancel_keeps_extension_range(opened_extensions_page):
-    start_extension, end_extension = get_non_existing_extension_range(size=5)
-    start_extension, end_extension = add_extension_range_from_ui(
-        opened_extensions_page,
-        start_extension,
-        end_extension,
-    )
+    start_extension, end_extension = get_or_create_extension_range(opened_extensions_page, size=5)
 
     opened_extensions_page.open_bottom_delete_popup()
     time.sleep(2)
@@ -830,19 +820,14 @@ def test_bottom_delete_cancel_keeps_extension_range(opened_extensions_page):
         f"Extension '{end_extension}' disappeared after cancelling bottom delete."
     )
 
-    bottom_delete_extension_range_from_ui(opened_extensions_page, start_extension, end_extension)
-
 
 @testcase("808-3054", "Verify Company Extensions: Delete - Bottom delete removes selected extension range")
 @pytest.mark.administration
 @pytest.mark.extensions
 def test_bottom_delete_removes_selected_extension_range(opened_extensions_page):
-    start_extension, end_extension = get_non_existing_extension_range(size=5)
-    start_extension, end_extension = add_extension_range_from_ui(
-        opened_extensions_page,
-        start_extension,
-        end_extension,
-    )
+    global DISPOSABLE_EXTENSION_RANGE
+
+    start_extension, end_extension = get_or_create_extension_range(opened_extensions_page, size=5)
 
     opened_extensions_page.open_bottom_delete_popup()
     time.sleep(2)
@@ -864,6 +849,7 @@ def test_bottom_delete_removes_selected_extension_range(opened_extensions_page):
         )
     opened_extensions_page.clear_search_and_submit()
     time.sleep(2)
+    DISPOSABLE_EXTENSION_RANGE = None
 
 
 @testcase("808-3055", "Verify Company Extensions: Pagination - Page navigation and items per page work correctly")
