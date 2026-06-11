@@ -1,4 +1,5 @@
 import csv
+import os
 import pytest
 import time 
 
@@ -12,6 +13,7 @@ from tests.config.testcase import testcase
 from tests.pages.login_page import LoginPage
 from tests.pages.administration_page import AdministrationPage
 from tests.pages.extensions_page import ExtensionsPage
+from tests.helpers.microsip_helper import DEFAULT_MICROSIP_DIR, MicroSIPHelper
 
 from tests.db.connection import get_db_connection
 from tests.db.extension_queries import get_extension_numbers
@@ -97,6 +99,42 @@ def opened_extensions_page(driver, wait):
 
     return extensions_page
 
+
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_disposable_extension_data(opened_extensions_page):
+    yield
+
+    global DISPOSABLE_SINGLE_EXTENSION, DISPOSABLE_EXTENSION_RANGE
+
+    if DISPOSABLE_SINGLE_EXTENSION is not None:
+        row_delete_extension_from_ui(opened_extensions_page, DISPOSABLE_SINGLE_EXTENSION)
+        DISPOSABLE_SINGLE_EXTENSION = None
+
+    if DISPOSABLE_EXTENSION_RANGE is not None:
+        start_extension, end_extension = DISPOSABLE_EXTENSION_RANGE
+        bottom_delete_extension_range_from_ui(opened_extensions_page, start_extension, end_extension)
+        DISPOSABLE_EXTENSION_RANGE = None
+
+
+@pytest.fixture
+def microsip():
+    microsip_dir = os.getenv("MICROSIP_DIR")
+    server = os.getenv("MICROSIP_SERVER", "10.100.121.30")
+    account_label = os.getenv("MICROSIP_ACCOUNT_LABEL", "Kube-dev")
+    call_number = os.getenv("MICROSIP_CALL_NUMBER", "099452011")
+    check_command = os.getenv("MICROSIP_CHECK_COMMAND")
+    if not check_command:
+        pytest.skip("MICROSIP_CHECK_COMMAND is required to verify whether the call succeeds or declines.")
+
+    return MicroSIPHelper(
+        microsip_dir=microsip_dir or DEFAULT_MICROSIP_DIR,
+        server=server,
+        account_label=account_label,
+        call_number=call_number,
+        check_command=check_command,
+    )
+
+
 def get_existing_extension_number():
     connection = get_db_connection()
     extension_numbers = get_extension_numbers(connection)
@@ -124,28 +162,11 @@ def get_non_existing_extension_range(size=2):
 
 
 def add_extension_from_ui(extensions_page, extension_number, end_extension_number=None, password="Test1234"):
-    if end_extension_number is None:
-        end_extension_number = extension_number
-
-    if extensions_page.is_delete_confirmation_open():
-        extensions_page.cancel_delete_confirmation()
-        time.sleep(2)
-    if extensions_page.is_add_popup_open():
-        extensions_page.close_add_popup()
-        time.sleep(2)
-
-    extensions_page.open_add_popup()
-    time.sleep(2)
-    extensions_page.choose_extension_type("pjsip")
-    time.sleep(2)
-    extensions_page.choose_transport_type("udp")
-    time.sleep(2)
-    extensions_page.fill_add_popup(extension_number, end_extension_number, password=password)
-    time.sleep(2)
-    extensions_page.submit_add_popup()
-    time.sleep(2)
-    extensions_page.search_for_extension_number(extension_number)
-    time.sleep(2)
+    extensions_page.create_extension(
+        extension_number=extension_number,
+        end_extension_number=end_extension_number,
+        password=password,
+    )
     assert extensions_page.has_visible_extension(extension_number), (
         f"Expected disposable extension '{extension_number}' to be visible after adding it."
     )
@@ -154,19 +175,12 @@ def add_extension_from_ui(extensions_page, extension_number, end_extension_numbe
 
 def add_extension_range_from_ui(extensions_page, start_extension, end_extension, password="Test1234"):
     add_extension_from_ui(extensions_page, start_extension, end_extension, password=password)
-    missing_extensions = []
-    for extension_number in range(int(start_extension), int(end_extension) + 1):
-        extensions_page.search_for_extension_number(extension_number)
-        time.sleep(2)
-        if not extensions_page.has_visible_extension(extension_number):
-            missing_extensions.append(str(extension_number))
-
-    if missing_extensions:
+    extension_numbers = range(int(start_extension), int(end_extension) + 1)
+    try:
+        extensions_page.assert_extensions_exist(extension_numbers)
+    except AssertionError:
         bottom_delete_extension_range_from_ui(extensions_page, start_extension, end_extension)
-        pytest.fail(
-            f"Range add did not create all expected extensions from {start_extension} to {end_extension}. "
-            f"Missing: {', '.join(missing_extensions)}."
-        )
+        raise
 
     return str(start_extension), str(end_extension)
 
@@ -208,28 +222,20 @@ def row_delete_extension_range_from_ui(extensions_page, start_extension, end_ext
 
 
 def bottom_delete_extension_range_from_ui(extensions_page, start_extension, end_extension):
-    extensions_page.open_bottom_delete_popup()
-    time.sleep(2)
     try:
-        extensions_page.fill_add_popup(start_extension, end_extension)
-        time.sleep(2)
-        extensions_page.submit_popup_and_wait_closed()
-        time.sleep(2)
+        (
+            extensions_page
+            .open_bottom_delete_popup()
+            .fill_add_popup(start_extension, end_extension)
+            .submit_add_popup(wait_until_closed=True)
+        )
     finally:
         if extensions_page.is_add_popup_open():
             extensions_page.close_add_popup()
 
 
 def row_delete_extension_from_ui(extensions_page, extension_number):
-    extensions_page.search_for_extension_number(extension_number)
-    time.sleep(2)
-    if not extensions_page.has_visible_extension(extension_number):
-        return
-
-    extensions_page.open_first_row_delete_confirmation()
-    time.sleep(2)
-    extensions_page.confirm_delete_confirmation()
-    time.sleep(2)
+    extensions_page.delete_extension_if_exists(extension_number)
 
 
 def skip_not_automated_yet():
@@ -667,13 +673,7 @@ def test_adding_non_existent_extension(opened_extensions_page):
 @pytest.mark.extensions
 def test_adding_non_existent_extension_range(opened_extensions_page):
     start_extension, end_extension = get_or_create_extension_range(opened_extensions_page, size=5)
-
-    for extension_number in range(int(start_extension), int(end_extension) + 1):
-        opened_extensions_page.search_for_extension_number(extension_number)
-        time.sleep(2)
-        assert opened_extensions_page.has_visible_extension(extension_number), (
-            f"Expected extension '{extension_number}' from added range to be visible."
-        )
+    assert start_extension and end_extension, "Expected disposable extension range to be created."
 
 
 @testcase("808-3047", "Verify Company Extensions: Mobile - Mobile popup opens for selected extension")
@@ -721,12 +721,9 @@ def test_row_delete_cancel_keeps_record(opened_extensions_page):
     assert opened_extensions_page.has_visible_extension(extension_number), (
         f"Expected disposable extension '{extension_number}' before opening row delete confirmation."
     )
-    opened_extensions_page.open_first_row_delete_confirmation()
-    time.sleep(2)
+    opened_extensions_page.cancel_first_row_delete()
     try:
-        assert opened_extensions_page.is_delete_confirmation_open(), "Row delete confirmation did not open."
-        opened_extensions_page.cancel_delete_confirmation()
-        time.sleep(2)
+        assert not opened_extensions_page.is_delete_confirmation_open(), "Row delete confirmation should be closed after Reject."
     finally:
         if opened_extensions_page.is_delete_confirmation_open():
             opened_extensions_page.cancel_delete_confirmation()
@@ -835,7 +832,7 @@ def test_bottom_delete_removes_selected_extension_range(opened_extensions_page):
         assert opened_extensions_page.is_add_popup_open(), "Bottom delete range popup did not open."
         opened_extensions_page.fill_add_popup(start_extension, end_extension)
         time.sleep(2)
-        opened_extensions_page.submit_popup_and_wait_closed()
+        opened_extensions_page.submit_add_popup(wait_until_closed=True)
         time.sleep(2)
     finally:
         if opened_extensions_page.is_add_popup_open():
@@ -887,11 +884,39 @@ def test_page_navigation_and_items_per_page_work_correctly(opened_extensions_pag
 def test_publish_applies_saved_changes_successfully(opened_extensions_page):
     opened_extensions_page.clear_search_and_submit()
     time.sleep(2)
-    opened_extensions_page.click_publish()
+    opened_extensions_page.publish_changes()
     time.sleep(2)
-
-    if opened_extensions_page.is_delete_confirmation_open():
-        opened_extensions_page.confirm_delete_confirmation()
-        time.sleep(2)
-
     assert opened_extensions_page.is_loaded(), "Extensions page did not remain loaded after publishing changes."
+
+
+@pytest.mark.administration
+@pytest.mark.publish
+@pytest.mark.integration
+@pytest.mark.requires_microsip
+def test_extension_becomes_available_only_after_publish(opened_extensions_page, microsip):
+    extension_number = str(get_non_existing_extension_number())
+    password = "Test1234"
+
+    opened_extensions_page.create_extension(extension_number=extension_number, password=password)
+
+    try:
+        microsip.configure_account(extension=extension_number, password=password).restart()
+
+        assert microsip.call_is_declined(extension=extension_number, password=password), (
+            "Extension should not call 099452011 before Publish."
+        )
+
+        opened_extensions_page.publish_changes()
+
+        assert microsip.call_succeeds(extension=extension_number, password=password), (
+            "Extension should call 099452011 after Publish."
+        )
+
+        opened_extensions_page.delete_extension_if_exists(extension_number)
+        opened_extensions_page.publish_changes()
+
+        assert microsip.call_is_declined(extension=extension_number, password=password), (
+            "Deleted extension should not call 099452011 after delete and Publish."
+        )
+    finally:
+        opened_extensions_page.delete_extension_if_exists(extension_number)

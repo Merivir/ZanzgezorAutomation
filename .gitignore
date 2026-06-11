@@ -19,3 +19,5 @@ build/
 
 test_config.json
 config/test_config.json
+tests/tools/MicroSIP/
+tests/helper_tool/MicroSIP/

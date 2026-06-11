@@ -763,6 +763,39 @@ class ExtensionsPage:
                 return self.has_visible_extension(expected_extension)
 
         return False
+
+    def wait_until_extension_visible(self, extension_number):
+        extension_number = str(extension_number)
+        self.wait.until(lambda _: self.has_visible_extension(extension_number))
+        return self
+
+    def wait_until_extension_not_visible(self, extension_number):
+        extension_number = str(extension_number)
+        self.wait.until(lambda _: not self.has_visible_extension(extension_number))
+        return self
+
+    def assert_extensions_exist(self, extension_numbers):
+        missing_extensions = []
+
+        for extension_number in extension_numbers:
+            self.search_for_extension_number(extension_number)
+            if not self.has_visible_extension(extension_number):
+                missing_extensions.append(str(extension_number))
+
+        assert not missing_extensions, (
+            f"Expected extensions to exist, but these were missing: {missing_extensions}"
+        )
+
+        return self
+
+    def close_blocking_dialogs_if_any(self):
+        if self.is_delete_confirmation_open():
+            self.cancel_delete_confirmation()
+
+        if self.is_add_popup_open():
+            self.close_add_popup()
+
+        return self
     
     def open_add_popup(self):
         if self.is_add_popup_open():
@@ -810,7 +843,12 @@ class ExtensionsPage:
 
         if password:
             self.log_action("Fill popup password")
-            self.driver.find_element(*self.ADD_POPUP_PASSWORD).send_keys(password)
+            password_input = self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_PASSWORD))
+            password_input.send_keys(Keys.CONTROL, "a")
+            password_input.send_keys(Keys.BACKSPACE)
+            password_input.send_keys(password)
+
+        return self
 
     def touch_and_blur(self, locator, clear=False):
         element = self.wait.until(ec.element_to_be_clickable(locator))
@@ -918,26 +956,75 @@ class ExtensionsPage:
         end_input.send_keys(str(end))
         end_input.send_keys(Keys.TAB)
     
-    def submit_add_popup(self):
+    def submit_add_popup(self, wait_until_closed=False):
         self.log_action("Click popup Submit")
-        submit_button = self.driver.find_element(*self.ADD_POPUP_SUBMIT)
+        submit_button = self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_SUBMIT))
         self.click_element(submit_button)
 
-    def submit_edit_popup(self):
-        self.submit_add_popup()
-        self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
+        if wait_until_closed:
+            self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
+
         return self
+
+    def submit_edit_popup(self):
+        return self.submit_add_popup(wait_until_closed=True)
 
     def submit_popup_and_wait_closed(self):
         self.log_action("Submit popup and wait until it closes")
-        self.submit_add_popup()
-        self.wait.until(ec.invisibility_of_element_located(self.ADD_POPUP))
-        return self
+        return self.submit_add_popup(wait_until_closed=True)
+
+    def create_extension(
+        self,
+        extension_number,
+        end_extension_number=None,
+        extension_type="pjsip",
+        transport_type="udp",
+        password="Test1234",
+    ):
+        if end_extension_number is None:
+            end_extension_number = extension_number
+
+        return (
+            self.close_blocking_dialogs_if_any()
+            .open_add_popup()
+            .choose_extension_type(extension_type)
+            .choose_transport_type(transport_type)
+            .fill_add_popup(extension_number, end_extension_number, password=password)
+            .submit_add_popup(wait_until_closed=True)
+            .search_for_extension_number(extension_number)
+            .wait_until_extension_visible(extension_number)
+        )
+
+    def delete_extension_if_exists(self, extension_number):
+        self.search_for_extension_number(extension_number)
+
+        if not self.has_visible_extension(extension_number):
+            return self
+
+        return (
+            self.open_first_row_delete_confirmation()
+            .confirm_delete_confirmation()
+            .search_for_extension_number(extension_number)
+            .wait_until_extension_not_visible(extension_number)
+        )
+
+    def cancel_first_row_delete(self):
+        return self.open_first_row_delete_confirmation().cancel_delete_confirmation()
 
     def click_publish(self):
         self.log_action("Click Publish")
         publish_button = self.wait.until(ec.element_to_be_clickable(self.PUBLISH_BUTTON))
         self.click_element(publish_button)
+        return self
+
+    def publish_changes(self):
+        self.log_action("Publish changes")
+        self.click_publish()
+
+        if self.is_delete_confirmation_open():
+            self.confirm_delete_confirmation()
+
+        self.wait_until_loaded()
         return self
 
     def go_to_last_page(self):
