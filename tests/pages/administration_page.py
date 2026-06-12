@@ -49,6 +49,10 @@ class AdministrationPage:
         By.XPATH,
         "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[15]/button",
     )
+    SPECIAL_NUMBERS_BUTTON = (
+        By.XPATH,
+        "//cc-sidebar//li[contains(@class, 'sub-link') and contains(normalize-space(), 'Special Numbers')]",
+    )
     TEMPLATES_BUTTON = (
         By.XPATH,
         "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[16]/button",
@@ -95,4 +99,8 @@ class AdministrationPage:
 
         self.driver.find_element(*self.EXTENSIONS_BUTTON).click()
 
+    def open_special_numbers(self):
+        # Special Numbers lives under Administration > Flow.
+        self.wait.until(ec.element_to_be_clickable(self.FLOW_BUTTON)).click()
+        self.wait.until(ec.element_to_be_clickable(self.SPECIAL_NUMBERS_BUTTON)).click()
     
