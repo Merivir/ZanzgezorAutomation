@@ -1,17 +1,21 @@
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class AdministrationPage:
     # Main entry in the portal that opens Administration in a new tab.
     ADMINISTRATION_MENU = (
         By.XPATH,
-        "/html/body/cc-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[11]/button",
+        "//*[self::button or self::a or @role='button']["
+        ".//*[normalize-space()='Administration'] or contains(normalize-space(), 'Administration') or "
+        "contains(@href, 'administration')]",
     )
     # Sidebar entries inside the Administration tab.
     ADMINISTRATION_SIDEBAR = (
         By.XPATH,
-        "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div",
+        "//app-root//cc-sidebar//nav | //app-root//cc-sidebar",
     )
     DASHBOARD_BUTTON = (
         By.XPATH,
@@ -23,7 +27,7 @@ class AdministrationPage:
     )
     FLOW_BUTTON = (
         By.XPATH,
-        "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[3]/button",
+        "//app-root//cc-sidebar//*[self::button or self::li or self::a][contains(normalize-space(), 'Flow')]",
     )
     USERS_BUTTON = (
         By.XPATH,
@@ -47,7 +51,7 @@ class AdministrationPage:
     )
     EXTENSIONS_BUTTON = (
         By.XPATH,
-        "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[15]/button",
+        "//app-root//cc-sidebar//*[self::button or self::li or self::a][contains(normalize-space(), 'Extensions')]",
     )
     SPECIAL_NUMBERS_BUTTON = (
         By.XPATH,
@@ -75,18 +79,21 @@ class AdministrationPage:
         self.wait.until(ec.presence_of_element_located(self.ADMINISTRATION_SIDEBAR))
 
     def open_administration_page(self):
-        # Click the menu entry that opens the administration page in a new tab, then switch to that tab and wait for it to load.
+        # Click the menu entry. Some environments open Administration in a new tab, others navigate in the same tab.
         current_tabs = self.driver.window_handles
         try:
-            self.wait.until(ec.element_to_be_clickable(self.ADMINISTRATION_MENU))
+            administration_menu = self.wait.until(ec.element_to_be_clickable(self.ADMINISTRATION_MENU))
         except Exception as e:
             print(f"Error while waiting for Administration menu: {e}")
             raise
 
-        self.driver.find_element(*self.ADMINISTRATION_MENU).click()
+        administration_menu.click()
 
-        self.wait.until(lambda d: len(d.window_handles) > len(current_tabs))
-        self.driver.switch_to.window(self.driver.window_handles[-1])
+        try:
+            WebDriverWait(self.driver, 3).until(lambda d: len(d.window_handles) > len(current_tabs))
+            self.driver.switch_to.window(self.driver.window_handles[-1])
+        except TimeoutException:
+            pass
         self.wait_until_loaded()
 
     def open_extensions(self):

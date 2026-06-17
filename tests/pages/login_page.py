@@ -6,12 +6,15 @@ class LoginPage:
     # Flexible login selectors are useful while the UI is still changing.
     USERNAME = (
         By.XPATH,
-        "//input[@name='username' or @id='username' or @autocomplete='username' or @type='text']",
+        "//input[@placeholder='Enter your username' or @name='username' or @id='username' or @autocomplete='username']",
     )
-    PASSWORD = (By.XPATH, "//input[@name='password' or @id='password' or @type='password']")
+    PASSWORD = (
+        By.XPATH,
+        "//input[@placeholder='Enter your password' or @name='password' or @id='password' or @type='password']",
+    )
     LOGIN_BUTTON = (
         By.XPATH,
-        "//button[@type='submit' or normalize-space()='Login' or normalize-space()='Sign in']",
+        "//button[@type='submit' or normalize-space()='Login' or normalize-space()='Log in' or normalize-space()='Sign in']",
     )
 
     def __init__(self, driver, wait, base_url: str):
