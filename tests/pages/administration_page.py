@@ -62,8 +62,9 @@ class AdministrationPage:
         "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[16]/button",
     )   
     NOTIFICATIONS_BUTTON = (
-        By.XPATH, 
-        "/html/body/app-root/div/div[1]/cc-sidebar/nav/ol/div/div/li[17]/button",
+        By.XPATH,
+        "//app-root//cc-sidebar//*[self::button or self::li or self::a]"
+        "[contains(normalize-space(), 'Notifications')]",
     )
     LOGO_BUTTON = (
         By.XPATH,
@@ -110,4 +111,7 @@ class AdministrationPage:
         # Special Numbers lives under Administration > Flow.
         self.wait.until(ec.element_to_be_clickable(self.FLOW_BUTTON)).click()
         self.wait.until(ec.element_to_be_clickable(self.SPECIAL_NUMBERS_BUTTON)).click()
+
+    def open_notifications(self):
+        self.wait.until(ec.element_to_be_clickable(self.NOTIFICATIONS_BUTTON)).click()
     

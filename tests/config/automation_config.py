@@ -1,10 +1,28 @@
-from tests import modules
+import json
+import os
+from pathlib import Path
+
+
+DEFAULT_CONFIG_PATH = Path("tests/config/test_config.json")
+CONFIG_PATH_ENV = "TEST_CONFIG_PATH"
+CLIENT_ENV = "TEST_CLIENT"
 
 
 def load_config():
-    import json
-    with open("tests/config/test_config.json") as f:
-        config = json.load(f)    
+    config_path = Path(os.getenv(CONFIG_PATH_ENV, DEFAULT_CONFIG_PATH))
+    if not config_path.is_file():
+        raise FileNotFoundError(
+            f"Test config file was not found: {config_path}. "
+            f"Create tests/config/test_config.json or set ${CONFIG_PATH_ENV} to an existing config file."
+        )
+
+    with config_path.open(encoding="utf-8") as f:
+        config = json.load(f)
+
+    selected_client = os.getenv(CLIENT_ENV)
+    if selected_client:
+        config["active_client"] = selected_client
+
     return config
     
 

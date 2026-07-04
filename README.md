@@ -29,6 +29,16 @@ To add more clients, copy the `kube1` block and change URL/users.
 ## Run regression tests
 `pytest`
 
+## ReaBe API smoke test
+Set these environment variables before running the API smoke test:
+- `REABE_BASE_URL` — base URL of the ReaBe API
+- `REABE_API_TOKEN` — optional bearer token
+- `REABE_API_ENDPOINT` — optional endpoint to call, default `/`
+- `REABE_TIMEOUT` — optional request timeout in seconds, default `10`
+
+Example:
+`$env:REABE_BASE_URL="https://example.test/api"; $env:REABE_API_ENDPOINT="/health"; pytest tests/modules/test_reabe_api.py`
+
 Optional overrides:
 - `TEST_CLIENT` to switch client without editing file:
   `$env:TEST_CLIENT="kube1"; pytest`

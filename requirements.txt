@@ -2,3 +2,4 @@ selenium==4.29.0
 pytest==8.3.5
 mysql-connector-python
 pyodbc
+requests>=2.31.0
