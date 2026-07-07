@@ -1,0 +1,103 @@
+{
+  "active_client": "kube1",
+  "run": {
+    "headless": false,
+    "chromedriver_path": "",
+    "chrome_binary_path": "",
+    "selenium_remote_url": ""
+  },
+  "clients": {
+    "kube1": {
+      "base_url": "https://kube1.teamsolutions.am",
+      "users": {
+        "default": {
+          "username": "meri_admin",
+          "password": "Test12345",
+          "enabled": true
+        },
+        "admin": {
+          "username": "meri_admin",
+          "password": "Test12345",
+          "enabled": false
+        },
+        "supervisor": {
+          "username": "meri_super",
+          "password": "Test12345",
+          "enabled": false
+        },
+        "agent": {
+          "username": "meri_agent",
+          "password": "Test12345",
+          "enabled": false
+        }
+      },
+      "modules": {
+        "dashboard": {
+          "enabled": true,
+          "sections": {}
+        },
+        "administration": {
+          "enabled": true,
+          "sections": {
+            "extensions": true,
+            "users": false,
+            "roles": true
+          }
+        }
+      },
+      "database": {
+        "host": "10.100.121.10",
+        "port": 3306,
+        "database": "callcenter",
+        "user": "root",
+        "password": "j&t9Sr"
+      }
+    },
+    "newhzor": {
+      "base_url": "https://new-hzor.teamsolutions.am/",
+      "users": {
+        "default": {
+          "username": "meri__admin",
+          "password": "Q6mBC*Mm",
+          "enabled": true
+        },
+        "admin": {
+          "username": "meri__admin",
+          "password": "Q6mBC*Mm",
+          "enabled": true
+        },
+        "supervisor": {
+          "username": null,
+          "password": null,
+          "enabled": false
+        },
+        "agent": {
+          "username": null,
+          "password": null,
+          "enabled": false
+        }
+      },
+      "modules": {
+        "dashboard": {
+          "enabled": true,
+          "sections": {}
+        },
+        "administration": {
+          "enabled": true,
+          "sections": {
+            "extensions": true,
+            "users": false,
+            "roles": true
+          }
+        }
+      },
+      "database": {
+        "host": "10.100.120.94",
+        "port": 33066,
+        "database": "callcenter",
+        "user": "karot",
+        "password": "2TYfjaUX"
+      }
+    }
+  }
+}
