@@ -39,9 +39,11 @@
         "administration": {
           "enabled": true,
           "sections": {
-            "extensions": true,
+            "extensions": false,
             "users": false,
-            "roles": true
+            "roles": false,
+            "notifications": true,
+            "special_numbers": false
           }
         }
       },
@@ -57,7 +59,7 @@
       "base_url": "https://new-hzor.teamsolutions.am/",
       "users": {
         "default": {
-          "username": "meri__admin",
+          "username": "meri_admin",
           "password": "Q6mBC*Mm",
           "enabled": true
         },
@@ -85,9 +87,11 @@
         "administration": {
           "enabled": true,
           "sections": {
-            "extensions": true,
+            "extensions": false,
             "users": false,
-            "roles": true
+            "roles": false,
+            "notifications": true,
+            "special_numbers": false
           }
         }
       },

@@ -8,33 +8,79 @@ from selenium.common.exceptions import ElementClickInterceptedException, StaleEl
 class ExtensionsPage:
     TABLE_DATA_HEADERS = ["Extension", "Real Extension", "Type", "Transport type", "Password", "Status"]
 
+    PAGE_ROOT = (
+        "(//*[self::cc-main-page or self::cc-main or contains(@class, 'pageContainer')]"
+        "[.//h1[normalize-space()='Extensions']])[last()]"
+    )
+    ARIA_LOWER = "translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+
     # Main page locators
-    EXTENSIONS_HEADER = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/h1")
-    SEARCH_INPUT = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/cc-dynamic-form/form/div[2]/div/div/cc-text-control/div/div/span/input")
-    SEARCH_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/div/div[2]/cc-button/p-button/button")
-    CLEAR_FILTERS = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-filter/div/div[2]/div/div[1]/cc-button/p-button/button")
-    EXPORT_BUTTON = (By.XPATH, "//*[@id='pn_id_7']/div[1]/div/div[2]/div/cc-button/p-button/button")
+    EXTENSIONS_HEADER = (By.XPATH, PAGE_ROOT + "//h1[normalize-space()='Extensions']")
+    SEARCH_INPUT = (By.XPATH, PAGE_ROOT + "//cc-dynamic-filter//cc-text-control//input")
+    SEARCH_BUTTON = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//cc-dynamic-filter//button[.//span[normalize-space()='Search'] or .//i[normalize-space()='search'] or contains("
+        + ARIA_LOWER
+        + ", 'search')]",
+    )
+    CLEAR_FILTERS = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//cc-dynamic-filter//button[.//span[normalize-space()='Clear filters'] or contains("
+        + ARIA_LOWER
+        + ", 'clear')]",
+    )
+    EXPORT_BUTTON = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//button[.//span[contains(normalize-space(), 'Export')] or .//i[contains(normalize-space(), 'download') or contains(normalize-space(), 'file_download') or contains(normalize-space(), 'ios_share')] or contains("
+        + ARIA_LOWER
+        + ", 'export')]",
+    )
     EXPORT_CSV_OPTION = (By.XPATH, "//div[contains(@class, 'export-table-items')]//*[normalize-space()='CSV']")
-    ADD_BUTTON = (By.XPATH, "//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add']]")
-    DELETE_BUTTON = (By.XPATH, "//cc-dynamic-actions//button[.//span[normalize-space()='Delete'] or .//i[normalize-space()='delete']]")
-    PUBLISH_BUTTON = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/div/div/cc-dynamic-actions/div/cc-button[1]/p-button/button")
+    ADD_BUTTON = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add'] or contains("
+        + ARIA_LOWER
+        + ", 'add')]",
+    )
+    DELETE_BUTTON = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//cc-dynamic-actions//button[.//span[normalize-space()='Delete'] or .//i[normalize-space()='delete'] or contains("
+        + ARIA_LOWER
+        + ", 'delete')]",
+    )
+    PUBLISH_BUTTON = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//cc-dynamic-actions//button[.//span[normalize-space()='Publish'] or .//i[normalize-space()='publish'] or contains("
+        + ARIA_LOWER
+        + ", 'publish')]",
+    )
     
     # Table locators
-    TABLE = (By.XPATH, "//*[@id=\"pn_id_7-table\"]")
-    COLUMN_TOGGLE = (By.XPATH, "//*[@id='pn_id_10']/div[3]")
+    TABLE = (By.XPATH, PAGE_ROOT + "//table")
+    COLUMN_TOGGLE = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//p-multiselect//*[@role='combobox' or contains(@class, 'p-multiselect-trigger') or contains(@class, 'p-multiselect-label')][1]",
+    )
     COLUMN_OPTIONS = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option']")
     COLUMN_PANEL = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]")
-    TABLE_HEADERS = (By.XPATH, "//table//thead//th")
-    TABLE_ROWS = (By.XPATH, "//table//tbody/tr")
-    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit']]")
-    ROW_MOBILE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='phone']]")
-    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete']]")
-    EMPTY_TABLE_MESSAGE = (By.XPATH, "//*[@id=\"pn_id_7-table\"]/tbody/tr/td")
-    FIRST_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='First Page']")
-    NEXT_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Next Page']")
-    LAST_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Last Page']")
-    CURRENT_PAGE_BUTTON = (By.XPATH, "//button[contains(@class, 'p-paginator-page') and contains(@class, 'p-highlight')]")
-    PREVIOUS_PAGE_BUTTON = (By.XPATH, "//button[@aria-label='Previous Page']")
+    TABLE_HEADERS = (By.XPATH, PAGE_ROOT + "//table//thead//th")
+    TABLE_ROWS = (By.XPATH, PAGE_ROOT + "//table//tbody/tr[not(contains(@class, 'p-datatable-emptymessage'))]")
+    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit'] or contains(@aria-label, 'Edit')]")
+    ROW_MOBILE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='phone'] or contains(@aria-label, 'Mobile')]")
+    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete'] or contains(@aria-label, 'Delete')]")
+    EMPTY_TABLE_MESSAGE = (By.XPATH, PAGE_ROOT + "//table//tbody/tr/td")
+    FIRST_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='First Page']")
+    NEXT_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Next Page']")
+    LAST_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Last Page']")
+    CURRENT_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[contains(@class, 'p-paginator-page') and contains(@class, 'p-highlight')]")
+    PREVIOUS_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Previous Page']")
     DROPDOWN_PANEL = (By.XPATH, "//div[contains(@class, 'p-dropdown-panel')]")
 
     # Confirmation dialog locators
@@ -57,25 +103,40 @@ class ExtensionsPage:
     )
 
     # Add popup locators
-    ADD_POPUP = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/cc-dynamic-popup/p-dialog/div/div")
+    ADD_POPUP = (By.XPATH, "//p-dialog//div[contains(@class, 'p-dialog') or @role='dialog'] | //div[@role='dialog']")
     ADD_POPUP_TYPE = [
-        (By.XPATH, "(//cc-dynamic-popup//p-dropdown)[1]/div"),
+        (By.XPATH, "//p-dialog//cc-dropdown-control[.//label[normalize-space()='Type']]//*[@role='combobox' or contains(@class, 'p-dropdown')][1]"),
         (By.XPATH, "(//cc-dynamic-popup//*[@role='combobox'])[1]"),
-        (By.XPATH, "(//p-dialog//p-dropdown)[1]/div"),
         (By.XPATH, "(//p-dialog//*[@role='combobox'])[1]"),
     ]
     ADD_POPUP_TRANSPORT_TYPE = [
-        (By.XPATH, "(//cc-dynamic-popup//p-dropdown)[2]/div"),
+        (By.XPATH, "//p-dialog//cc-dropdown-control[.//label[contains(normalize-space(), 'Transport')]]//*[@role='combobox' or contains(@class, 'p-dropdown')][1]"),
         (By.XPATH, "(//cc-dynamic-popup//*[@role='combobox'])[2]"),
-        (By.XPATH, "(//p-dialog//p-dropdown)[2]/div"),
         (By.XPATH, "(//p-dialog//*[@role='combobox'])[2]"),
     ]
-    ADD_POPUP_START_INPUT = (By.XPATH, "//*[@id='rangeStart']/span/input")
-    ADD_POPUP_END_INPUT = (By.XPATH, "//*[@id='rangeEnd']/span/input")
-    ADD_POPUP_GENERATE_PASSWORDS = (By.XPATH, "//*[@id='generatePasswords']/div/div[2]")
-    ADD_POPUP_PASSWORD = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/cc-dynamic-popup/p-dialog/div/div/div[3]/div/div[1]/cc-dynamic-form/form/div[7]/div/div/cc-text-control/div/div/span/input")
-    ADD_POPUP_SUBMIT = (By.XPATH, "//p-dialog//cc-button[2]//button")
-    ADD_POPUP_CANCEL = (By.XPATH, "/html/body/app-root/div/div[2]/cc-main-page/div/div/cc-main/cc-dynamic-popup/p-dialog/div/div/div[3]/div/div[2]/cc-button[1]/p-button/button")
+    ADD_POPUP_START_INPUT = (
+        By.XPATH,
+        "//p-dialog//*[@id='rangeStart']//input | //p-dialog//cc-text-control[.//label[contains(normalize-space(), 'Start')]]//input",
+    )
+    ADD_POPUP_END_INPUT = (
+        By.XPATH,
+        "//p-dialog//*[@id='rangeEnd']//input | //p-dialog//cc-text-control[.//label[contains(normalize-space(), 'End')]]//input",
+    )
+    ADD_POPUP_GENERATE_PASSWORDS = (
+        By.XPATH,
+        "//p-dialog//*[@id='generatePasswords']//*[contains(@class, 'p-checkbox-box')]"
+        " | //p-dialog//*[contains(normalize-space(), 'Generate Password')]"
+        "/ancestor::*[self::cc-checkbox-control or self::div][1]//*[contains(@class, 'p-checkbox-box')]",
+    )
+    ADD_POPUP_PASSWORD = (By.XPATH, "//p-dialog//cc-text-control[.//label[contains(normalize-space(), 'Password')]]//input")
+    ADD_POPUP_SUBMIT = (
+        By.XPATH,
+        "(//p-dialog//button[.//span[normalize-space()='Submit'] or contains(normalize-space(), 'Submit') or contains(normalize-space(), 'Save')])[last()]",
+    )
+    ADD_POPUP_CANCEL = (
+        By.XPATH,
+        "(//p-dialog//button[.//span[normalize-space()='Cancel'] or contains(normalize-space(), 'Cancel')])[last()]",
+    )
     ADD_POPUP_REQUIRED_ERRORS = (By.XPATH, "//p-dialog//*[contains(@class, 'cc-control-error') and normalize-space()='Required field']")
     POPUP_INPUTS = (By.XPATH, "//p-dialog//input")
     POPUP = (By.XPATH, "//p-dialog")
@@ -319,10 +380,15 @@ class ExtensionsPage:
         return option.get_attribute("aria-checked") == "true"
 
     def set_column_option_visibility(self, label, visible):
+        label_literal = self.xpath_literal(label)
         option_locator = (
             By.XPATH,
-            "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option' and @aria-label="
-            f"'{label}']",
+            "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option' and "
+            + "(@aria-label="
+            + label_literal
+            + " or normalize-space()="
+            + label_literal
+            + ")]",
         )
         option = self.wait.until(ec.element_to_be_clickable(option_locator))
         if self.is_column_option_selected(option) != visible:
@@ -604,7 +670,7 @@ class ExtensionsPage:
 
     def toggle_add_popup_generate_password(self):
         self.log_action("Click Add popup Generate Password checkbox")
-        checkbox_locator = (By.XPATH, "//*[@id='generatePasswords']//*[contains(@class, 'p-checkbox-box')]")
+        checkbox_locator = self.ADD_POPUP_GENERATE_PASSWORDS
         checkbox = self.wait.until(ec.element_to_be_clickable(checkbox_locator))
         self.driver.execute_script("arguments[0].click();", checkbox)
         self.wait.until(lambda _: "p-highlight" in self.driver.find_element(*checkbox_locator).get_attribute("class"))
@@ -654,12 +720,16 @@ class ExtensionsPage:
 
     def choose_open_dropdown_option(self, option_text):
         self.log_action(f"Choose dropdown option: {option_text}")
-        lower_option_text = option_text.lower()
+        lower_option_text = str(option_text).strip().lower()
+        option_literal = self.xpath_literal(lower_option_text)
         option_locator = (
             By.XPATH,
             "//*[@role='option']"
-            f"[translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{lower_option_text}' "
-            f"or translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{lower_option_text}']",
+            "[translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="
+            + option_literal
+            + " or translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="
+            + option_literal
+            + "]",
         )
         self.click_element(self.wait.until(ec.element_to_be_clickable(option_locator)))
         self.wait.until(ec.invisibility_of_element_located(self.DROPDOWN_PANEL))
@@ -1039,3 +1109,13 @@ class ExtensionsPage:
         if first_row:
             self.wait.until(ec.staleness_of(first_row))
         return self
+
+    @staticmethod
+    def xpath_literal(value):
+        value = str(value)
+        if "'" not in value:
+            return f"'{value}'"
+        if '"' not in value:
+            return f'"{value}"'
+        parts = value.split("'")
+        return "concat(" + ', "\'", '.join(f"'{part}'" for part in parts) + ")"

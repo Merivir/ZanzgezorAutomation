@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -146,8 +148,12 @@ def _cached_chromedriver_path():
     return str(drivers[0]) if drivers else ""
 
 
-def _build_chrome_options(run_config):
+def _build_chrome_options(run_config, user_data_dir):
     options = ChromeOptions()
+    options.add_argument(f"--user-data-dir={user_data_dir}")
+    options.add_argument("--disable-application-cache")
+    options.add_argument("--disk-cache-size=0")
+    options.add_argument("--media-cache-size=0")
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     options.add_experimental_option(
         "prefs",
@@ -178,7 +184,8 @@ def _build_chrome_options(run_config):
 @pytest.fixture(scope="module")
 def driver():
     run_config = load_config().get("run", {})
-    options = _build_chrome_options(run_config)
+    user_data_dir = Path(tempfile.mkdtemp(prefix="automation-chrome-"))
+    options = _build_chrome_options(run_config, user_data_dir)
     selenium_remote_url = _config_value(run_config, "SELENIUM_REMOTE_URL", "selenium_remote_url")
 
     if selenium_remote_url:
@@ -194,8 +201,11 @@ def driver():
         {"behavior": "allow", "downloadPath": str(DOWNLOAD_DIR.resolve())},
     )
     driver.maximize_window()
-    yield driver
-    driver.quit()
+    try:
+        yield driver
+    finally:
+        driver.quit()
+        shutil.rmtree(user_data_dir, ignore_errors=True)
 
 
 @pytest.fixture(scope="module")

@@ -10,46 +10,66 @@ from selenium.webdriver.support import expected_conditions as ec
 class NotificationsPage:
     TABLE_DATA_HEADERS = ["Category", "Theme", "Type", "Persist", "Active", "Show Time (s)", "Expire Time (h)"]
 
-    HEADER = (By.XPATH, "//cc-notification-types//h1[normalize-space()='Notifications']")
+    PAGE_ROOT = (
+        "(//cc-notification-types"
+        " | //*[self::cc-main-page or self::cc-main or contains(@class, 'pageContainer')]"
+        "[.//h1[normalize-space()='Notifications']])[last()]"
+    )
+    LABEL_LOWER = "translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+    ARIA_LOWER = "translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+
+    HEADER = (By.XPATH, PAGE_ROOT + "//h1[normalize-space()='Notifications']")
     CATEGORY_FILTER = (
         By.XPATH,
-        "//cc-notification-types//cc-text-control[.//label[normalize-space()='Category']]//input",
+        PAGE_ROOT + "//cc-text-control[.//label[contains(" + LABEL_LOWER + ", 'category')]]//input",
     )
     TYPE_FILTER = (
         By.XPATH,
-        "//cc-notification-types//cc-dropdown-control[.//label[normalize-space()='Type']]"
-        "//*[contains(@class, 'p-dropdown')][1]",
+        PAGE_ROOT
+        + "//cc-dropdown-control[.//label[contains("
+        + LABEL_LOWER
+        + ", 'type')]]//*[@role='combobox' or contains(@class, 'p-dropdown')][1]",
     )
     THEME_FILTER = (
         By.XPATH,
-        "//cc-notification-types//cc-dropdown-control[.//label[normalize-space()='Theme']]"
-        "//*[contains(@class, 'p-dropdown')][1]",
+        PAGE_ROOT
+        + "//cc-dropdown-control[.//label[contains("
+        + LABEL_LOWER
+        + ", 'theme')]]//*[@role='combobox' or contains(@class, 'p-dropdown')][1]",
     )
     ACTIVE_FILTER = (
         By.XPATH,
-        "//cc-notification-types//cc-dropdown-control[.//label[normalize-space()='Active']]"
-        "//*[contains(@class, 'p-dropdown')][1]",
+        PAGE_ROOT
+        + "//cc-dropdown-control[.//label[contains("
+        + LABEL_LOWER
+        + ", 'active')]]//*[@role='combobox' or contains(@class, 'p-dropdown')][1]",
     )
     SEARCH_BUTTON = (
         By.XPATH,
-        "//cc-notification-types//cc-dynamic-filter//button"
-        "[.//span[normalize-space()='Search'] or .//i[normalize-space()='search']]",
+        PAGE_ROOT
+        + "//cc-dynamic-filter//button[.//span[normalize-space()='Search'] or .//i[normalize-space()='search'] or contains("
+        + ARIA_LOWER
+        + ", 'search')]",
     )
     CLEAR_FILTERS_BUTTON = (
         By.XPATH,
-        "//cc-notification-types//cc-dynamic-filter//button[.//span[normalize-space()='Clear filters']]",
+        PAGE_ROOT
+        + "//cc-dynamic-filter//button[.//span[normalize-space()='Clear filters'] or contains("
+        + ARIA_LOWER
+        + ", 'clear')]",
     )
-    RESULTS_COUNT = (By.XPATH, "//cc-notification-types//*[contains(@class, 'countResults')]")
-    TABLE = (By.XPATH, "//cc-notification-types//table")
-    TABLE_HEADERS = (By.XPATH, "//cc-notification-types//table//thead//th")
-    TABLE_ROWS = (By.XPATH, "//cc-notification-types//table//tbody/tr")
+    RESULTS_COUNT = (By.XPATH, PAGE_ROOT + "//*[contains(@class, 'countResults')]")
+    TABLE = (By.XPATH, PAGE_ROOT + "//table")
+    TABLE_HEADERS = (By.XPATH, PAGE_ROOT + "//table//thead//th")
+    TABLE_ROWS = (By.XPATH, PAGE_ROOT + "//table//tbody/tr[not(contains(@class, 'p-datatable-emptymessage'))]")
     EMPTY_TABLE_MESSAGE = (
         By.XPATH,
-        "//cc-notification-types//table//tbody/tr/td[contains(normalize-space(), 'No data')]",
+        PAGE_ROOT + "//table//tbody/tr/td[contains(normalize-space(), 'No data')]",
     )
     COLUMN_TOGGLE = (
         By.XPATH,
-        "//cc-notification-types//p-multiselect//*[contains(@class, 'p-multiselect-trigger')]",
+        PAGE_ROOT
+        + "//p-multiselect//*[@role='combobox' or contains(@class, 'p-multiselect-trigger') or contains(@class, 'p-multiselect-label')][1]",
     )
     COLUMN_PANEL = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]")
     COLUMN_OPTIONS = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option']")
@@ -57,8 +77,10 @@ class NotificationsPage:
     DROPDOWN_OPTIONS = (By.XPATH, "//*[@role='option']")
     ADD_BUTTON = (
         By.XPATH,
-        "//cc-notification-types//cc-dynamic-actions//button"
-        "[.//span[normalize-space()='Add'] or .//i[normalize-space()='add']]",
+        PAGE_ROOT
+        + "//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add'] or contains("
+        + ARIA_LOWER
+        + ", 'add')]",
     )
     POPUP = (By.XPATH, "//p-dialog//div[contains(@class, 'p-dialog') or @role='dialog'] | //div[@role='dialog']")
     POPUP_CANCEL = (
@@ -81,16 +103,19 @@ class NotificationsPage:
         "//button[contains(normalize-space(), 'Cancel') or contains(normalize-space(), 'No') "
         "or contains(normalize-space(), 'Reject')])[last()]",
     )
-    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit']]")
-    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete']]")
-    ROW_TRANSLATE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='translate']]")
-    FIRST_PAGE_BUTTON = (By.XPATH, "//cc-notification-types//button[@aria-label='First Page']")
-    PREVIOUS_PAGE_BUTTON = (By.XPATH, "//cc-notification-types//button[@aria-label='Previous Page']")
-    NEXT_PAGE_BUTTON = (By.XPATH, "//cc-notification-types//button[@aria-label='Next Page']")
-    LAST_PAGE_BUTTON = (By.XPATH, "//cc-notification-types//button[@aria-label='Last Page']")
+    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit'] or contains(@aria-label, 'Edit')]")
+    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete'] or contains(@aria-label, 'Delete')]")
+    ROW_TRANSLATE_BUTTON = (
+        By.XPATH,
+        ".//button[.//i[normalize-space()='translate'] or contains(@aria-label, 'Translate')]",
+    )
+    FIRST_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='First Page']")
+    PREVIOUS_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Previous Page']")
+    NEXT_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Next Page']")
+    LAST_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Last Page']")
     ROWS_PER_PAGE = (
         By.XPATH,
-        "//cc-notification-types//p-paginator//span[@role='combobox' and @aria-label='Rows per page']",
+        PAGE_ROOT + "//p-paginator//*[@role='combobox' and @aria-label='Rows per page']",
     )
 
     def __init__(self, driver, wait):
@@ -232,14 +257,18 @@ class NotificationsPage:
         return re.sub(r"\s+", " ", self.driver.find_element(*locator).text).strip()
 
     def choose_dropdown_filter(self, locator, option_text):
-        normalized = str(option_text).strip().lower()
+        normalized = self.normalize(option_text)
+        normalized_literal = self.xpath_literal(normalized)
         self.log_action(f"Choose dropdown option: {option_text}")
         self.click_element(self.wait.until(ec.element_to_be_clickable(locator)))
         option_locator = (
             By.XPATH,
             "//*[@role='option' and ("
             "translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="
-            f"'{normalized}' or translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{normalized}')]",
+            + normalized_literal
+            + " or translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="
+            + normalized_literal
+            + ")]",
         )
         self.click_element(self.wait.until(ec.element_to_be_clickable(option_locator)))
         try:
@@ -320,10 +349,15 @@ class NotificationsPage:
         return option.get_attribute("aria-checked") == "true"
 
     def set_column_option_visibility(self, label, visible):
+        label_literal = self.xpath_literal(label)
         option_locator = (
             By.XPATH,
             "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option' and "
-            f"(@aria-label='{label}' or normalize-space()='{label}')]",
+            + "(@aria-label="
+            + label_literal
+            + " or normalize-space()="
+            + label_literal
+            + ")]",
         )
         option = self.wait.until(ec.element_to_be_clickable(option_locator))
         if self.is_column_option_selected(option) != visible:
@@ -393,9 +427,10 @@ class NotificationsPage:
         return self
 
     def click_sort_header(self, header_text):
+        header_literal = self.xpath_literal(header_text)
         header_locator = (
             By.XPATH,
-            f"//cc-notification-types//table//thead//th[.//span[normalize-space()='{header_text}']]",
+            self.PAGE_ROOT + "//table//thead//th[.//span[normalize-space()=" + header_literal + "] or normalize-space()=" + header_literal + "]",
         )
         self.log_action(f"Click sort header: {header_text}")
         self.click_element(self.wait.until(ec.element_to_be_clickable(header_locator)))
@@ -404,6 +439,16 @@ class NotificationsPage:
 
     def can_use_pagination(self):
         return self.has_visible_element(self.ROWS_PER_PAGE)
+
+    @staticmethod
+    def xpath_literal(value):
+        value = str(value)
+        if "'" not in value:
+            return f"'{value}'"
+        if '"' not in value:
+            return f'"{value}"'
+        parts = value.split("'")
+        return "concat(" + ', "\'", '.join(f"'{part}'" for part in parts) + ")"
 
     @staticmethod
     def normalize(value):

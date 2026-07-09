@@ -10,42 +10,68 @@ from selenium.webdriver.support import expected_conditions as ec
 class SpecialNumbersPage:
     TABLE_DATA_HEADERS = ["Number", "Description", "Created By", "Creation Date", "Start Date", "End Date", "Number Type"]
 
-    HEADER = (By.XPATH, "//cc-special-numbers//h1[normalize-space()='Special numbers']")
+    PAGE_ROOT = (
+        "(//cc-special-numbers"
+        " | //*[self::cc-main-page or self::cc-main or contains(@class, 'pageContainer')]"
+        "[.//h1[normalize-space()='Special numbers']])[last()]"
+    )
+    LABEL_LOWER = "translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+    ARIA_LOWER = "translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+
+    HEADER = (By.XPATH, PAGE_ROOT + "//h1[normalize-space()='Special numbers']")
     TYPE_FILTER = (
         By.XPATH,
-        "//cc-special-numbers//cc-dropdown-control[.//label[contains(normalize-space(), 'Search by type')]]"
-        "//*[contains(@class, 'p-dropdown')][1]",
+        PAGE_ROOT
+        + "//cc-dropdown-control[.//label[contains("
+        + LABEL_LOWER
+        + ", 'type')]]//*[@role='combobox' or contains(@class, 'p-dropdown')][1]",
     )
     NUMBER_FILTER = (
         By.XPATH,
-        "//cc-special-numbers//cc-text-control[.//label[contains(normalize-space(), 'Search by number')]]//input",
+        PAGE_ROOT + "//cc-text-control[.//label[contains(" + LABEL_LOWER + ", 'number')]]//input",
     )
     SEARCH_BUTTON = (
         By.XPATH,
-        "//cc-special-numbers//cc-dynamic-filter//button[.//span[normalize-space()='Search'] or .//i[normalize-space()='search']]",
+        PAGE_ROOT
+        + "//cc-dynamic-filter//button[.//span[normalize-space()='Search'] or .//i[normalize-space()='search'] or contains("
+        + ARIA_LOWER
+        + ", 'search')]",
     )
     CLEAR_FILTERS_BUTTON = (
         By.XPATH,
-        "//cc-special-numbers//cc-dynamic-filter//button[.//span[normalize-space()='Clear filters']]",
+        PAGE_ROOT
+        + "//cc-dynamic-filter//button[.//span[normalize-space()='Clear filters'] or contains("
+        + ARIA_LOWER
+        + ", 'clear')]",
     )
-    RESULTS_COUNT = (By.XPATH, "//cc-special-numbers//*[contains(@class, 'countResults')]")
-    TABLE = (By.XPATH, "//cc-special-numbers//table")
-    TABLE_HEADERS = (By.XPATH, "//cc-special-numbers//table//thead//th")
-    TABLE_ROWS = (By.XPATH, "//cc-special-numbers//table//tbody/tr")
-    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit']]")
-    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete']]")
-    COLUMN_TOGGLE = (By.XPATH, "//cc-special-numbers//p-multiselect//div[contains(@class, 'p-multiselect-trigger')]")
+    RESULTS_COUNT = (By.XPATH, PAGE_ROOT + "//*[contains(@class, 'countResults')]")
+    TABLE = (By.XPATH, PAGE_ROOT + "//table")
+    TABLE_HEADERS = (By.XPATH, PAGE_ROOT + "//table//thead//th")
+    TABLE_ROWS = (By.XPATH, PAGE_ROOT + "//table//tbody/tr[not(contains(@class, 'p-datatable-emptymessage'))]")
+    ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit'] or contains(@aria-label, 'Edit')]")
+    ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete'] or contains(@aria-label, 'Delete')]")
+    COLUMN_TOGGLE = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//p-multiselect//*[@role='combobox' or contains(@class, 'p-multiselect-trigger') or contains(@class, 'p-multiselect-label')][1]",
+    )
     COLUMN_PANEL = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]")
     COLUMN_OPTIONS = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option']")
     DROPDOWN_PANEL = (By.XPATH, "//div[contains(@class, 'p-dropdown-panel')]")
     DROPDOWN_OPTIONS = (By.XPATH, "//*[@role='option']")
     ADD_BUTTON = (
         By.XPATH,
-        "//cc-special-numbers//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add']]",
+        PAGE_ROOT
+        + "//cc-dynamic-actions//button[.//span[normalize-space()='Add'] or .//i[normalize-space()='add'] or contains("
+        + ARIA_LOWER
+        + ", 'add')]",
     )
     PUBLISH_BUTTON = (
         By.XPATH,
-        "//cc-special-numbers//cc-dynamic-actions//button[.//span[normalize-space()='Publish'] or .//i[normalize-space()='publish']]",
+        PAGE_ROOT
+        + "//cc-dynamic-actions//button[.//span[normalize-space()='Publish'] or .//i[normalize-space()='publish'] or contains("
+        + ARIA_LOWER
+        + ", 'publish')]",
     )
 
     def __init__(self, driver, wait):
@@ -155,7 +181,7 @@ class SpecialNumbersPage:
         return self
 
     def choose_open_dropdown_option(self, option_text):
-        normalized = str(option_text).strip().lower()
+        normalized = self.normalize_type(option_text)
         aliases = {
             "white": ["white", "white list", "whitelist"],
             "black": ["black", "black list", "blacklist"],
@@ -163,10 +189,12 @@ class SpecialNumbersPage:
         option_values = aliases.get(normalized, [normalized])
         xpath_conditions = [
             "translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="
-            f"'{value}' or translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{value}'"
+            + self.xpath_literal(value)
+            + " or translate(@aria-label, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')="
+            + self.xpath_literal(value)
             for value in option_values
         ]
-        option_locator = (By.XPATH, f"//*[@role='option'][{' or '.join(xpath_conditions)}]")
+        option_locator = (By.XPATH, "//*[@role='option'][" + " or ".join(xpath_conditions) + "]")
         self.log_action(f"Choose dropdown option: {option_text}")
         self.click_element(self.wait.until(ec.element_to_be_clickable(option_locator)))
         self.wait.until(ec.invisibility_of_element_located(self.DROPDOWN_PANEL))
@@ -236,10 +264,15 @@ class SpecialNumbersPage:
         return option.get_attribute("aria-checked") == "true"
 
     def set_column_option_visibility(self, label, visible):
+        label_literal = self.xpath_literal(label)
         option_locator = (
             By.XPATH,
             "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option' and "
-            f"(@aria-label='{label}' or normalize-space()='{label}')]",
+            + "(@aria-label="
+            + label_literal
+            + " or normalize-space()="
+            + label_literal
+            + ")]",
         )
         option = self.wait.until(ec.element_to_be_clickable(option_locator))
         if self.is_column_option_selected(option) != visible:
@@ -247,6 +280,16 @@ class SpecialNumbersPage:
             self.click_element(option)
             self.wait.until(lambda _: self.driver.find_element(*option_locator).get_attribute("aria-checked") == str(visible).lower())
         return self
+
+    @staticmethod
+    def xpath_literal(value):
+        value = str(value)
+        if "'" not in value:
+            return f"'{value}'"
+        if '"' not in value:
+            return f'"{value}"'
+        parts = value.split("'")
+        return "concat(" + ', "\'", '.join(f"'{part}'" for part in parts) + ")"
 
     @staticmethod
     def normalize_type(value):
