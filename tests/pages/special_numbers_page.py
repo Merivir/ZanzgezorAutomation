@@ -6,6 +6,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as ec
 
+from tests.helpers.selenium_waits import wait_for_ui_idle
+
 
 class SpecialNumbersPage:
     TABLE_DATA_HEADERS = ["Number", "Description", "Created By", "Creation Date", "Start Date", "End Date", "Number Type"]
@@ -77,6 +79,10 @@ class SpecialNumbersPage:
     def __init__(self, driver, wait):
         self.driver = driver
         self.wait = wait
+
+    def wait_for_ui_idle(self):
+        wait_for_ui_idle(self.driver, self.wait)
+        return self
 
     def log_action(self, message):
         print(f"[Special Numbers] {message}", flush=True)

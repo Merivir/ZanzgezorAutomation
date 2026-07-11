@@ -9,20 +9,26 @@ def get_db_connection():
     client_config = get_client_config(config, active_client)
     db_config = client_config["database"]
 
-    try:
-        connection = mysql.connector.connect(
-            host=db_config["host"],
-            port=db_config["port"],
-            user=db_config["user"],
-            password=db_config["password"],
-            database=db_config["database"],
+    required = ("host", "port", "user", "password", "database")
+    missing = [key for key in required if not db_config.get(key)]
+    if missing:
+        raise ValueError(
+            f"Missing database configuration: {', '.join(missing)}. "
+            "Set DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, and DB_NAME."
         )
-        return connection
-    except mysql.connector.Error as e:
-        print(f"Error connecting to database: {e}")
-        return None
+
+    return mysql.connector.connect(
+        host=db_config["host"],
+        port=db_config["port"],
+        user=db_config["user"],
+        password=db_config["password"],
+        database=db_config["database"],
+    )
 
 
 if __name__ == "__main__":
     conn = get_db_connection()
-    print("Connected successfully" if conn else "Connection failed")
+    try:
+        print("Connected successfully")
+    finally:
+        conn.close()

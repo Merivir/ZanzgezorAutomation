@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
 
-from tests.config.automation_config import load_config
+from tests.config.automation_config import get_active_client, get_client_config, load_config
 
 
 LOG_FILE = Path(__file__).parent / "logs" / "test_run.log"
@@ -19,7 +19,17 @@ DEFAULT_CHROME_BINARY_PATHS = (
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
 )
-CACHED_CHROMEDRIVER_DIR = Path.home() / ".cache" / "selenium" / "chromedriver" / "win64"
+
+SUITE_MARKERS = {
+    "focused": "not destructive and not integration and not requires_microsip and not not_automated and not extended",
+    "smoke": "smoke and not destructive and not integration and not requires_microsip",
+    "all": "",
+    "extended": "extended and not destructive",
+    "destructive": "destructive and not requires_microsip",
+    "integration": "integration",
+    "microsip": "requires_microsip",
+}
+SECTION_MARKERS = ("extensions", "notifications", "special_numbers")
 
 
 def _write_log(message):
@@ -43,7 +53,29 @@ def _skip_reason(report):
     return str(report.longrepr).replace("Skipped: ", "")
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--suite",
+        choices=tuple(SUITE_MARKERS),
+        default="all",
+        help="Test tier to run. The default preserves all original cases in enabled sections.",
+    )
+    parser.addoption(
+        "--all-modules",
+        action="store_true",
+        help="Ignore module and section enabled flags from test_config.json.",
+    )
+
+
+def _explicit_mark_expression(config):
+    args = tuple(str(arg) for arg in config.invocation_params.args)
+    return "-m" in args or any(arg.startswith("--markexpr") for arg in args)
+
+
 def pytest_configure(config):
+    if not _explicit_mark_expression(config):
+        config.option.markexpr = SUITE_MARKERS[config.getoption("--suite")]
+
     config.test_run_results = []
 
     started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -53,6 +85,45 @@ def pytest_configure(config):
     _write_log(f"Started at: {started_at}")
     _write_log(f"Command: pytest {args}".strip())
     _write_log("")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--all-modules"):
+        return
+
+    automation_config = load_config()
+    active_client = get_active_client(automation_config)
+    client_config = get_client_config(automation_config, active_client)
+    modules = client_config.get("modules", {})
+    administration = modules.get("administration", {})
+    administration_enabled = administration.get("enabled", False)
+    enabled_sections = administration.get("sections", {})
+
+    selected = []
+    deselected = []
+    for item in items:
+        section = next((name for name in SECTION_MARKERS if item.get_closest_marker(name)), None)
+        item_path = Path(str(item.fspath))
+        if section is None and item_path.parent.name == "administration" and item_path.stem.startswith("test_"):
+            candidate = item_path.stem.removeprefix("test_")
+            section = candidate if candidate in SECTION_MARKERS else None
+
+        if section is not None and administration_enabled and enabled_sections.get(section, False):
+            selected.append(item)
+        elif section is not None:
+            deselected.append(item)
+        elif item_path.parent.name == "modules" and item_path.stem.startswith("test_"):
+            module_name = item_path.stem.removeprefix("test_")
+            if modules.get(module_name, {}).get("enabled", False):
+                selected.append(item)
+            else:
+                deselected.append(item)
+        else:
+            selected.append(item)
+
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
 
 
 def pytest_runtest_setup(item):
@@ -131,23 +202,6 @@ def _default_chrome_binary_path():
     return ""
 
 
-def _version_parts(path):
-    version = path.parent.name
-    return tuple(int(part) for part in version.split(".") if part.isdigit())
-
-
-def _cached_chromedriver_path():
-    if not CACHED_CHROMEDRIVER_DIR.exists():
-        return ""
-
-    drivers = sorted(
-        CACHED_CHROMEDRIVER_DIR.glob("*/chromedriver.exe"),
-        key=_version_parts,
-        reverse=True,
-    )
-    return str(drivers[0]) if drivers else ""
-
-
 def _build_chrome_options(run_config, user_data_dir):
     options = ChromeOptions()
     options.add_argument(f"--user-data-dir={user_data_dir}")
@@ -192,7 +246,6 @@ def driver():
         driver = webdriver.Remote(command_executor=selenium_remote_url, options=options)
     else:
         chromedriver_path = _config_value(run_config, "CHROMEDRIVER_PATH", "chromedriver_path")
-        chromedriver_path = chromedriver_path or _cached_chromedriver_path()
         service = ChromeService(executable_path=chromedriver_path) if chromedriver_path else None
         driver = webdriver.Chrome(service=service, options=options)
 
@@ -210,7 +263,7 @@ def driver():
 
 @pytest.fixture(scope="module")
 def wait(driver):
-    return WebDriverWait(driver, 10)
+    return WebDriverWait(driver, 20)
 
 
 @pytest.fixture

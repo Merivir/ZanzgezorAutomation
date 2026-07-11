@@ -1,0 +1,111 @@
+{
+    "active_client":  "kube1",
+    "run":  {
+                "headless":  false,
+                "chromedriver_path":  "",
+                "chrome_binary_path":  "",
+                "selenium_remote_url":  ""
+            },
+    "clients":  {
+                    "kube1":  {
+                                  "base_url":  "https://kube1.teamsolutions.am",
+                                  "users":  {
+                                                "default":  {
+                                                                "username":  "",
+                                                                "password":  "",
+                                                                "enabled":  true
+                                                            },
+                                                "admin":  {
+                                                              "username":  "",
+                                                              "password":  "",
+                                                              "enabled":  false
+                                                          },
+                                                "supervisor":  {
+                                                                   "username":  "",
+                                                                   "password":  "",
+                                                                   "enabled":  false
+                                                               },
+                                                "agent":  {
+                                                              "username":  "",
+                                                              "password":  "",
+                                                              "enabled":  false
+                                                          }
+                                            },
+                                  "modules":  {
+                                                  "dashboard":  {
+                                                                    "enabled":  true,
+                                                                    "sections":  {
+
+                                                                                 }
+                                                                },
+                                                  "administration":  {
+                                                                         "enabled":  true,
+                                                                         "sections":  {
+                                                                                          "extensions":  false,
+                                                                                          "users":  false,
+                                                                                          "roles":  false,
+                                                                                          "notifications":  true,
+                                                                                          "special_numbers":  false
+                                                                                      }
+                                                                     }
+                                              },
+                                  "database":  {
+                                                   "host":  "",
+                                                   "port":  "",
+                                                   "database":  "",
+                                                   "user":  "",
+                                                   "password":  ""
+                                               }
+                              },
+                    "newhzor":  {
+                                    "base_url":  "https://new-hzor.teamsolutions.am/",
+                                    "users":  {
+                                                  "default":  {
+                                                                  "username":  "",
+                                                                  "password":  "",
+                                                                  "enabled":  true
+                                                              },
+                                                  "admin":  {
+                                                                "username":  "",
+                                                                "password":  "",
+                                                                "enabled":  true
+                                                            },
+                                                  "supervisor":  {
+                                                                     "username":  "",
+                                                                     "password":  "",
+                                                                     "enabled":  false
+                                                                 },
+                                                  "agent":  {
+                                                                "username":  "",
+                                                                "password":  "",
+                                                                "enabled":  false
+                                                            }
+                                              },
+                                    "modules":  {
+                                                    "dashboard":  {
+                                                                      "enabled":  true,
+                                                                      "sections":  {
+
+                                                                                   }
+                                                                  },
+                                                    "administration":  {
+                                                                           "enabled":  true,
+                                                                           "sections":  {
+                                                                                            "extensions":  false,
+                                                                                            "users":  false,
+                                                                                            "roles":  false,
+                                                                                            "notifications":  true,
+                                                                                            "special_numbers":  false
+                                                                                        }
+                                                                       }
+                                                },
+                                    "database":  {
+                                                     "host":  "",
+                                                     "port":  "",
+                                                     "database":  "",
+                                                     "user":  "",
+                                                     "password":  ""
+                                                 }
+                                }
+                }
+}

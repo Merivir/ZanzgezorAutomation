@@ -6,6 +6,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as ec
 
+from tests.helpers.selenium_waits import wait_for_ui_idle
+
 
 class NotificationsPage:
     TABLE_DATA_HEADERS = ["Category", "Theme", "Type", "Persist", "Active", "Show Time (s)", "Expire Time (h)"]
@@ -121,6 +123,10 @@ class NotificationsPage:
     def __init__(self, driver, wait):
         self.driver = driver
         self.wait = wait
+
+    def wait_for_ui_idle(self):
+        wait_for_ui_idle(self.driver, self.wait)
+        return self
 
     def log_action(self, message):
         print(f"[Notifications] {message}", flush=True)
@@ -247,6 +253,14 @@ class NotificationsPage:
     def clear_filters(self):
         self.log_action("Click Clear filters")
         self.click_element(self.wait.until(ec.element_to_be_clickable(self.CLEAR_FILTERS_BUTTON)))
+        self.wait.until(lambda _: self.current_category_filter_value() == "")
+        empty_message = next(
+            (element for element in self.driver.find_elements(*self.EMPTY_TABLE_MESSAGE) if element.is_displayed()),
+            None,
+        )
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.SEARCH_BUTTON)))
+        if empty_message is not None:
+            self.wait.until(lambda _: ec.staleness_of(empty_message)(self.driver) or bool(self.visible_table_records()))
         self.wait_for_table_ready()
         return self
 
@@ -285,7 +299,30 @@ class NotificationsPage:
         return self.choose_dropdown_filter(self.THEME_FILTER, theme)
 
     def choose_active_filter(self, active):
-        return self.choose_dropdown_filter(self.ACTIVE_FILTER, active)
+        normalized = self.normalize(active)
+        truthy_values = {"true", "yes", "active", "enabled", "1"}
+        falsy_values = {"false", "no", "inactive", "disabled", "0"}
+        accepted_values = truthy_values if normalized in truthy_values else falsy_values
+
+        self.log_action(f"Choose Active dropdown option: {active}")
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.ACTIVE_FILTER)))
+        options = self.wait.until(
+            lambda _: [
+                option
+                for option in self.driver.find_elements(By.XPATH, "//*[@role='option']")
+                if option.is_displayed()
+            ]
+        )
+
+        for option in options:
+            label = self.normalize(option.text or option.get_attribute("aria-label"))
+            if label in accepted_values:
+                self.click_element(option)
+                self.wait_for_table_ready()
+                return self
+
+        available = [self.normalize(option.text or option.get_attribute("aria-label")) for option in options]
+        raise AssertionError(f"No Active option matching {active!r}. Available options: {available}")
 
     def clear_dropdown_filter(self, locator):
         clear_icon = (

@@ -1,5 +1,4 @@
 import pytest
-import time
 
 from tests.config.automation_config import (
     get_active_client,
@@ -11,6 +10,9 @@ from tests.config.testcase import testcase
 from tests.pages.administration_page import AdministrationPage
 from tests.pages.login_page import LoginPage
 from tests.pages.special_numbers_page import SpecialNumbersPage
+
+
+pytestmark = pytest.mark.regression
 
 
 def skip_not_automated_yet():
@@ -62,6 +64,7 @@ def first_record_with_type_or_skip(special_numbers_page):
 @testcase("808-3122", "Verify Special Numbers: Navigation - Special Numbers page opens correctly")
 @pytest.mark.administration
 @pytest.mark.special_numbers
+@pytest.mark.smoke
 def test_special_numbers_page_opens_correctly(opened_special_numbers_page):
     assert opened_special_numbers_page.is_loaded(), "Special Numbers page did not load correctly."
     assert opened_special_numbers_page.has_main_controls(), "Not all Special Numbers main controls are visible."
@@ -71,12 +74,13 @@ def test_special_numbers_page_opens_correctly(opened_special_numbers_page):
 @testcase("808-3123", "Verify Special Numbers: Filters - Number type filter returns matching results")
 @pytest.mark.administration
 @pytest.mark.special_numbers
+@pytest.mark.smoke
 def test_number_type_filter_returns_matching_results(opened_special_numbers_page):
     record = first_record_with_type_or_skip(opened_special_numbers_page)
     number_type = record["Number Type"]
 
     opened_special_numbers_page.filter_by_type_and_search(number_type)
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
 
     assert opened_special_numbers_page.current_type_filter_text(), "Selected type filter should be visible."
     assert opened_special_numbers_page.visible_table_records(), "Expected records after applying type filter."
@@ -88,14 +92,15 @@ def test_number_type_filter_returns_matching_results(opened_special_numbers_page
 @testcase("808-3124", "Verify Special Numbers: Filters - Search by number returns matching result")
 @pytest.mark.administration
 @pytest.mark.special_numbers
+@pytest.mark.smoke
 def test_search_by_number_returns_matching_result(opened_special_numbers_page):
     opened_special_numbers_page.clear_filters()
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
     record = first_record_or_skip(opened_special_numbers_page)
     number = record["Number"]
 
     opened_special_numbers_page.search_by_number(number)
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
 
     assert opened_special_numbers_page.visible_table_records(), "Expected record after searching by number."
     assert opened_special_numbers_page.records_match_number(number), (
@@ -108,14 +113,14 @@ def test_search_by_number_returns_matching_result(opened_special_numbers_page):
 @pytest.mark.special_numbers
 def test_combined_filters_return_matching_results(opened_special_numbers_page):
     opened_special_numbers_page.clear_filters()
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
     record = first_record_with_type_or_skip(opened_special_numbers_page)
     number = record["Number"]
     number_type = record["Number Type"]
 
     opened_special_numbers_page.choose_type_filter(number_type)
     opened_special_numbers_page.search_by_number(number)
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
 
     assert opened_special_numbers_page.visible_table_records(), "Expected records after applying combined filters."
     assert opened_special_numbers_page.records_match_number(number), (
@@ -134,9 +139,9 @@ def test_clear_filters_resets_selected_values(opened_special_numbers_page):
 
     opened_special_numbers_page.choose_type_filter(record["Number Type"])
     opened_special_numbers_page.search_by_number(record["Number"])
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
     opened_special_numbers_page.clear_filters()
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
 
     assert opened_special_numbers_page.visible_table_records(), "Expected table records after clearing filters."
 
@@ -144,13 +149,14 @@ def test_clear_filters_resets_selected_values(opened_special_numbers_page):
 @testcase("808-3127", "Verify Special Numbers: Results - Results count reflects displayed records")
 @pytest.mark.administration
 @pytest.mark.special_numbers
+@pytest.mark.extended
 def test_results_count_reflects_displayed_records(opened_special_numbers_page):
     opened_special_numbers_page.clear_filters()
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
     record = first_record_with_type_or_skip(opened_special_numbers_page)
 
     opened_special_numbers_page.filter_by_type_and_search(record["Number Type"])
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
 
     assert opened_special_numbers_page.result_count() == opened_special_numbers_page.visible_record_count(), (
         "Results count should match visible table record count."
@@ -160,25 +166,26 @@ def test_results_count_reflects_displayed_records(opened_special_numbers_page):
 @testcase("808-3128", "Verify Special Numbers: Columns - Visible columns can be changed from dropdown")
 @pytest.mark.administration
 @pytest.mark.special_numbers
+@pytest.mark.extended
 def test_visible_columns_can_be_changed_from_dropdown(opened_special_numbers_page):
     initial_column_count = opened_special_numbers_page.visible_table_column_count()
     assert initial_column_count > 0, "Expected visible table columns before changing column visibility."
 
     opened_special_numbers_page.open_column_visibility_dropdown()
-    time.sleep(2)
+    opened_special_numbers_page.wait_for_ui_idle()
     labels = opened_special_numbers_page.column_visibility_option_labels()
     assert labels, "Expected Special Numbers column visibility options."
     column_to_toggle = labels[0]
 
     try:
         opened_special_numbers_page.set_column_option_visibility(column_to_toggle, False)
-        time.sleep(2)
+        opened_special_numbers_page.wait_for_ui_idle()
         assert opened_special_numbers_page.visible_table_column_count() == initial_column_count - 1, (
             f"Expected one fewer visible column after hiding {column_to_toggle!r}."
         )
 
         opened_special_numbers_page.set_column_option_visibility(column_to_toggle, True)
-        time.sleep(2)
+        opened_special_numbers_page.wait_for_ui_idle()
         assert opened_special_numbers_page.visible_table_column_count() == initial_column_count, (
             f"Expected column count to return after showing {column_to_toggle!r}."
         )

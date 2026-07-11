@@ -39,17 +39,17 @@
         "administration": {
           "enabled": true,
           "sections": {
-            "extensions": false,
+            "extensions": true,
             "users": false,
             "roles": false,
-            "notifications": true,
+            "notifications": false,
             "special_numbers": false
           }
         }
       },
       "database": {
         "host": "10.100.121.10",
-        "port": 3306,
+        "port": 33066,
         "database": "callcenter",
         "user": "root",
         "password": "j&t9Sr"

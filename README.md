@@ -14,7 +14,10 @@ Python Selenium automation skeleton.
    `Copy-Item config/test_config.example.json config/test_config.json`
 
 ## One-place client config
-Edit only [config/test_config.json](c:/Users/meri.virabyan/Desktop/automation-api/config/test_config.json):
+Copy `tests/config/test_config.example.json` to the ignored local
+`tests/config/test_config.json`, then select the active client there. Supply
+credentials through `TEST_USERNAME`, `TEST_PASSWORD`, `DB_HOST`, `DB_PORT`,
+`DB_NAME`, `DB_USER`, and `DB_PASSWORD` environment variables.
 - `active_client`: which client to run now
 - `clients.<client>.base_url`: target URL
 - `clients.<client>.users`: login accounts (default/admin/supervisor/agent)
@@ -28,6 +31,12 @@ To add more clients, copy the `kube1` block and change URL/users.
 
 ## Run regression tests
 `pytest`
+
+Pytest honors enabled modules/sections from `tests/config/test_config.json` and
+runs all their original cases by default.
+Use `--suite focused|smoke|extended|destructive|integration|microsip|all` to
+choose the test tier, or run `python tests/config/start_testing.py` to execute
+all cases from configured enabled sections.
 
 ## ReaBe API smoke test
 Set these environment variables before running the API smoke test:

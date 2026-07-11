@@ -8,6 +8,38 @@ CONFIG_PATH_ENV = "TEST_CONFIG_PATH"
 CLIENT_ENV = "TEST_CLIENT"
 
 
+def _set_if_present(container, key, env_name, transform=lambda value: value):
+    value = os.getenv(env_name)
+    if value is not None:
+        container[key] = transform(value)
+
+
+def _apply_environment_overrides(config):
+    active_client = config.get("active_client")
+    client_config = config.get("clients", {}).get(active_client)
+    if not client_config:
+        return
+
+    _set_if_present(client_config, "base_url", "TEST_BASE_URL")
+
+    users = client_config.setdefault("users", {})
+    for role, credentials in users.items():
+        prefix = f"TEST_{role.upper()}"
+        _set_if_present(credentials, "username", f"{prefix}_USERNAME")
+        _set_if_present(credentials, "password", f"{prefix}_PASSWORD")
+
+    default_user = users.setdefault("default", {})
+    _set_if_present(default_user, "username", "TEST_USERNAME")
+    _set_if_present(default_user, "password", "TEST_PASSWORD")
+
+    database = client_config.setdefault("database", {})
+    _set_if_present(database, "host", "DB_HOST")
+    _set_if_present(database, "port", "DB_PORT", int)
+    _set_if_present(database, "database", "DB_NAME")
+    _set_if_present(database, "user", "DB_USER")
+    _set_if_present(database, "password", "DB_PASSWORD")
+
+
 def load_config():
     config_path = Path(os.getenv(CONFIG_PATH_ENV, DEFAULT_CONFIG_PATH))
     if not config_path.is_file():
@@ -22,6 +54,8 @@ def load_config():
     selected_client = os.getenv(CLIENT_ENV)
     if selected_client:
         config["active_client"] = selected_client
+
+    _apply_environment_overrides(config)
 
     return config
     
@@ -49,7 +83,13 @@ def get_user_credentials(config, role):
     if role not in users:
         raise ValueError(f"Role '{role}' not found in configuration.")
     
-    return users[role]
+    credentials = users[role]
+    if not credentials.get("username") or not credentials.get("password"):
+        raise ValueError(
+            f"Credentials for role '{role}' are missing. Set TEST_USERNAME and TEST_PASSWORD "
+            "or provide them in your ignored local test_config.json."
+        )
+    return credentials
 
 def get_active_client(config):
     #taking active client from config and then finding the user credentials for the specified role in the active client configuration.

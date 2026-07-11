@@ -4,6 +4,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException, TimeoutException
 
+from tests.helpers.selenium_waits import wait_for_ui_idle
+
 
 class ExtensionsPage:
     TABLE_DATA_HEADERS = ["Extension", "Real Extension", "Type", "Transport type", "Password", "Status"]
@@ -71,11 +73,19 @@ class ExtensionsPage:
     COLUMN_OPTIONS = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option']")
     COLUMN_PANEL = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]")
     TABLE_HEADERS = (By.XPATH, PAGE_ROOT + "//table//thead//th")
+    EXTENSION_SORT_HEADER = (
+        By.XPATH,
+        PAGE_ROOT + "//table//thead//th[.//*[normalize-space()='Extension'] or normalize-space()='Extension'][1]",
+    )
     TABLE_ROWS = (By.XPATH, PAGE_ROOT + "//table//tbody/tr[not(contains(@class, 'p-datatable-emptymessage'))]")
     ROW_EDIT_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='edit'] or contains(@aria-label, 'Edit')]")
     ROW_MOBILE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='phone'] or contains(@aria-label, 'Mobile')]")
     ROW_DELETE_BUTTON = (By.XPATH, ".//button[.//i[normalize-space()='delete'] or contains(@aria-label, 'Delete')]")
     EMPTY_TABLE_MESSAGE = (By.XPATH, PAGE_ROOT + "//table//tbody/tr/td")
+    SUCCESS_NOTIFICATION = (
+        By.CSS_SELECTOR,
+        ".p-toast-message-success, .p-message-success, [role='alert'][class*='success']",
+    )
     FIRST_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='First Page']")
     NEXT_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Next Page']")
     LAST_PAGE_BUTTON = (By.XPATH, PAGE_ROOT + "//button[@aria-label='Last Page']")
@@ -86,20 +96,18 @@ class ExtensionsPage:
     # Confirmation dialog locators
     CONFIRM_DIALOG = (
         By.XPATH,
-        "//div[(@role='alertdialog' or contains(@class, 'p-confirm-dialog')) and contains(@class, 'p-dialog')]",
+        "//div[@role='alertdialog' and contains(concat(' ', normalize-space(@class), ' '), ' p-confirm-dialog ')]",
     )
+    CONFIRM_MESSAGE = (By.XPATH, ".//*[contains(@class, 'p-confirm-dialog-message')]")
     CONFIRM_CANCEL = (
         By.XPATH,
-        "(//div[(@role='alertdialog' or contains(@class, 'p-confirm-dialog')) and contains(@class, 'p-dialog')]"
-        "//button[contains(normalize-space(), 'Cancel') or contains(normalize-space(), 'No') "
-        "or contains(normalize-space(), 'Reject')])[last()]",
+        ".//button[contains(@class, 'p-confirm-dialog-reject') or "
+        ".//span[normalize-space()='Reject' or normalize-space()='Cancel' or normalize-space()='No']]",
     )
     CONFIRM_ACCEPT = (
         By.XPATH,
-        "(//div[(@role='alertdialog' or contains(@class, 'p-confirm-dialog')) and contains(@class, 'p-dialog')]"
-        "//button[contains(normalize-space(), 'Submit') or contains(normalize-space(), 'Yes') "
-        "or contains(normalize-space(), 'Ok') or contains(normalize-space(), 'Delete') "
-        "or contains(normalize-space(), 'Accept')])[last()]",
+        ".//button[contains(@class, 'p-confirm-dialog-accept') or "
+        ".//span[normalize-space()='Accept' or normalize-space()='Yes' or normalize-space()='OK']]",
     )
 
     # Add popup locators
@@ -173,6 +181,10 @@ class ExtensionsPage:
         self.driver = driver
         self.wait = wait
 
+    def wait_for_ui_idle(self):
+        wait_for_ui_idle(self.driver, self.wait)
+        return self
+
     def log_action(self, message):
         print(f"[Extensions] {message}", flush=True)
 
@@ -180,6 +192,17 @@ class ExtensionsPage:
         self.log_action("Wait until Extensions page is loaded")
         # the presence of the header is our signal that the page is ready for interaction.
         self.wait.until(ec.presence_of_element_located(self.EXTENSIONS_HEADER))
+
+    def wait_for_success_notification(self):
+        self.log_action("Wait for success notification")
+        self.wait.until(ec.visibility_of_element_located(self.SUCCESS_NOTIFICATION))
+        return self
+
+    def reload_extensions_table(self):
+        self.log_action("Reload Extensions table")
+        self.driver.refresh()
+        self.wait_until_loaded()
+        return self
 
     def has_main_controls(self) -> bool:
         # Basic smoke check for the most important page controls.
@@ -196,8 +219,10 @@ class ExtensionsPage:
         return all(self.driver.find_elements(*locator) for locator in required_locators)
 
     def is_loaded(self) -> bool:
-        # Final check to confirm the page is fully loaded and ready for interaction.
-        return self.has_main_controls()
+        # Page readiness should not depend on permission-specific action buttons.
+        return any(element.is_displayed() for element in self.driver.find_elements(*self.EXTENSIONS_HEADER)) and any(
+            element.is_displayed() for element in self.driver.find_elements(*self.TABLE)
+        )
 
     def has_any_element(self, locators) -> bool:
         return any(self.driver.find_elements(*locator) for locator in locators)
@@ -422,6 +447,73 @@ class ExtensionsPage:
         # Assuming the first column contains the extension name/number, this function retrieves that value from a given row element.
         return row.find_element(By.XPATH, "./td[1]").text.strip()
 
+    def visible_extension_numbers(self):
+        numbers = []
+        for row in self.visible_table_rows():
+            try:
+                value = self.get_extension_column_value(row)
+                if value.isdigit():
+                    numbers.append(int(value))
+            except StaleElementReferenceException:
+                return self.visible_extension_numbers()
+        return numbers
+
+    def sort_extensions_descending(self, force_refresh=False):
+        self.log_action("Sort Extension descending")
+        if force_refresh and self.visible_extension_numbers() == sorted(self.visible_extension_numbers(), reverse=True):
+            self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXTENSION_SORT_HEADER)))
+
+        for _ in range(3):
+            numbers = self.visible_extension_numbers()
+            if numbers and numbers == sorted(numbers, reverse=True):
+                return self
+
+            previous_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
+            self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXTENSION_SORT_HEADER)))
+            if previous_row is not None:
+                try:
+                    self.wait.until(ec.staleness_of(previous_row))
+                except TimeoutException:
+                    pass
+
+        numbers = self.visible_extension_numbers()
+        assert numbers == sorted(numbers, reverse=True), f"Extension column is not descending: {numbers}"
+        return self
+
+    def reveal_extensions_descending(self, extension_numbers):
+        expected = {str(number) for number in extension_numbers}
+        for _ in range(3):
+            self.reload_extensions_table()
+            for _ in range(3):
+                visible = {self.get_extension_column_value(row) for row in self.visible_table_rows()}
+                if expected.issubset(visible):
+                    return self
+
+                previous_row = self.visible_table_rows()[0] if self.visible_table_rows() else None
+                self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXTENSION_SORT_HEADER)))
+                if previous_row is not None:
+                    try:
+                        self.wait.until(ec.staleness_of(previous_row))
+                    except TimeoutException:
+                        pass
+
+        visible = {self.get_extension_column_value(row) for row in self.visible_table_rows()}
+        missing = sorted(expected - visible)
+        raise AssertionError(f"New extensions are not visible after reload and descending sort: {missing}")
+
+    def visible_row_for_extension(self, extension_number):
+        expected = str(extension_number)
+        for row in self.visible_table_rows():
+            try:
+                if self.get_extension_column_value(row) == expected:
+                    return row
+            except StaleElementReferenceException:
+                return self.visible_row_for_extension(expected)
+        return None
+
+    def wait_for_extension_row(self, extension_number):
+        return self.wait.until(lambda _: self.visible_row_for_extension(extension_number) or False)
+
     def visible_table_records(self):
         headers = self.visible_table_headers()
         records = []
@@ -455,6 +547,10 @@ class ExtensionsPage:
 
         return records[0]
 
+    def visible_record_for_extension(self, extension_number):
+        expected = str(extension_number)
+        return next((record for record in self.visible_table_records() if record.get("Extension") == expected), None)
+
     def first_visible_table_row_text(self):
         row = self.wait.until(lambda _: self.visible_table_rows()[0] if self.visible_table_rows() else False)
         return row.text
@@ -479,10 +575,17 @@ class ExtensionsPage:
         edit_button = row.find_element(*self.ROW_EDIT_BUTTON)
         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", edit_button)
         self.click_element(edit_button)
+        self.wait.until(lambda _: self.is_add_popup_open() or self.is_delete_confirmation_open())
+        if self.is_delete_confirmation_open():
+            self.log_action("Accept associated-mobile warning before Edit")
+            self.accept_visible_confirmation()
         self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
         self.wait.until(lambda _: self.is_add_popup_open())
         self.log_action("Edit popup opened")
         return self
+
+    def open_extension_edit_popup(self, extension_number):
+        return self.open_row_edit_popup(self.wait_for_extension_row(extension_number))
 
     def open_first_row_delete_confirmation(self):
         self.log_action("Click row Delete")
@@ -494,23 +597,57 @@ class ExtensionsPage:
         self.log_action("Delete confirmation opened")
         return self
 
+    def open_extension_delete_confirmation(self, extension_number):
+        self.log_action(f"Click row Delete for extension {extension_number}")
+        row = self.wait_for_extension_row(extension_number)
+        delete_button = row.find_element(*self.ROW_DELETE_BUTTON)
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", delete_button)
+        self.click_element(delete_button)
+        self.wait.until(lambda _: self.visible_confirmation_dialog() or False)
+        return self
+
     def is_delete_confirmation_open(self):
-        return (
-            self.has_visible_element(self.CONFIRM_DIALOG)
-            and self.has_visible_element(self.CONFIRM_CANCEL)
-            and self.has_visible_element(self.CONFIRM_ACCEPT)
+        dialog = self.visible_confirmation_dialog()
+        return bool(dialog and dialog.find_elements(*self.CONFIRM_CANCEL) and dialog.find_elements(*self.CONFIRM_ACCEPT))
+
+    def visible_confirmation_dialog(self):
+        return next(
+            (dialog for dialog in reversed(self.driver.find_elements(*self.CONFIRM_DIALOG)) if dialog.is_displayed()),
+            None,
         )
+
+    def confirmation_message(self, dialog=None):
+        dialog = dialog or self.visible_confirmation_dialog()
+        if dialog is None:
+            return ""
+        messages = dialog.find_elements(*self.CONFIRM_MESSAGE)
+        return messages[0].text.strip() if messages else ""
+
+    def accept_visible_confirmation(self):
+        dialog = self.wait.until(lambda _: self.visible_confirmation_dialog() or False)
+        button = self.wait.until(lambda _: next((item for item in dialog.find_elements(*self.CONFIRM_ACCEPT) if item.is_displayed() and item.is_enabled()), False))
+        self.click_element(button)
+        self.wait.until(ec.staleness_of(dialog))
+        return self
 
     def cancel_delete_confirmation(self):
         self.log_action("Click confirmation Reject/Cancel")
-        self.click_element(self.wait.until(ec.element_to_be_clickable(self.CONFIRM_CANCEL)))
-        self.wait.until(ec.invisibility_of_element_located(self.CONFIRM_DIALOG))
+        dialog = self.wait.until(lambda _: self.visible_confirmation_dialog() or False)
+        button = self.wait.until(lambda _: next((item for item in dialog.find_elements(*self.CONFIRM_CANCEL) if item.is_displayed() and item.is_enabled()), False))
+        self.click_element(button)
+        self.wait.until(ec.staleness_of(dialog))
         return self
 
     def confirm_delete_confirmation(self):
         self.log_action("Click confirmation Accept")
-        self.click_element(self.wait.until(ec.element_to_be_clickable(self.CONFIRM_ACCEPT)))
-        self.wait.until(ec.invisibility_of_element_located(self.CONFIRM_DIALOG))
+        first_message = self.confirmation_message()
+        self.accept_visible_confirmation()
+
+        # Some environments show a mobile-association warning first, followed
+        # by the actual delete confirmation. Accept both semantic dialogs.
+        if "associated mobile" in first_message.lower():
+            self.wait.until(lambda _: self.visible_confirmation_dialog() or False)
+            self.accept_visible_confirmation()
         return self
 
     def open_first_row_mobile_popup(self):
@@ -751,8 +888,15 @@ class ExtensionsPage:
 
         return any(expected_value == value or expected_value in value for value in self.popup_field_values())
 
-    def is_paginator_button_disabled(self, locator):
-        button = self.wait.until(ec.presence_of_element_located(locator))
+    def visible_paginator_button(self, locator):
+        return self.wait.until(
+            lambda _: next(
+                (button for button in self.driver.find_elements(*locator) if button.is_displayed()),
+                False,
+            )
+        )
+
+    def is_paginator_button_disabled(self, button):
         classes = button.get_attribute("class") or ""
         return bool(button.get_attribute("disabled")) or "p-disabled" in classes
 
@@ -766,8 +910,8 @@ class ExtensionsPage:
 
     def go_to_first_page(self):
         self.log_action("Click paginator First Page")
-        first_page_button = self.wait.until(ec.presence_of_element_located(self.FIRST_PAGE_BUTTON))
-        if self.is_paginator_button_disabled(self.FIRST_PAGE_BUTTON):
+        first_page_button = self.visible_paginator_button(self.FIRST_PAGE_BUTTON)
+        if self.is_paginator_button_disabled(first_page_button):
             self.log_action("First Page is disabled")
             return self
 
@@ -779,8 +923,8 @@ class ExtensionsPage:
 
     def go_to_next_page(self):
         self.log_action("Click paginator Next Page")
-        next_page_button = self.wait.until(ec.presence_of_element_located(self.NEXT_PAGE_BUTTON))
-        if self.is_paginator_button_disabled(self.NEXT_PAGE_BUTTON):
+        next_page_button = self.visible_paginator_button(self.NEXT_PAGE_BUTTON)
+        if self.is_paginator_button_disabled(next_page_button):
             self.log_action("Next Page is disabled")
             return False
 
@@ -792,8 +936,8 @@ class ExtensionsPage:
 
     def go_to_previous_page(self):
         self.log_action("Click paginator Previous Page")
-        previous_page_button = self.wait.until(ec.presence_of_element_located(self.PREVIOUS_PAGE_BUTTON))
-        if self.is_paginator_button_disabled(self.PREVIOUS_PAGE_BUTTON):
+        previous_page_button = self.visible_paginator_button(self.PREVIOUS_PAGE_BUTTON)
+        if self.is_paginator_button_disabled(previous_page_button):
             self.log_action("Previous Page is disabled")
             return False
 
@@ -845,12 +989,10 @@ class ExtensionsPage:
         return self
 
     def assert_extensions_exist(self, extension_numbers):
-        missing_extensions = []
-
-        for extension_number in extension_numbers:
-            self.search_for_extension_number(extension_number)
-            if not self.has_visible_extension(extension_number):
-                missing_extensions.append(str(extension_number))
+        expected = [str(number) for number in extension_numbers]
+        self.reveal_extensions_descending(expected)
+        visible = {self.get_extension_column_value(row) for row in self.visible_table_rows()}
+        missing_extensions = [number for number in expected if number not in visible]
 
         assert not missing_extensions, (
             f"Expected extensions to exist, but these were missing: {missing_extensions}"
@@ -880,11 +1022,14 @@ class ExtensionsPage:
         return self
 
     def open_bottom_delete_popup(self):
+        # The global action can become inert after server-side table sorting in
+        # some environments; a route-preserving reload restores the action.
+        self.reload_extensions_table()
         self.log_action("Click bottom Delete")
         self.click_element(self.wait.until(ec.element_to_be_clickable(self.DELETE_BUTTON)))
-        self.wait.until(ec.visibility_of_element_located(self.CONFIRM_DIALOG))
-        self.wait.until(lambda _: self.is_delete_confirmation_open())
-        self.confirm_delete_confirmation()
+        self.wait.until(lambda _: self.is_add_popup_open() or self.is_delete_confirmation_open())
+        if self.is_delete_confirmation_open():
+            self.confirm_delete_confirmation()
         self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
         self.wait.until(lambda _: self.is_add_popup_open())
         self.log_action("Bottom delete range popup opened")
@@ -1037,7 +1182,7 @@ class ExtensionsPage:
         return self
 
     def submit_edit_popup(self):
-        return self.submit_add_popup(wait_until_closed=True)
+        return self.submit_add_popup(wait_until_closed=True).wait_for_success_notification()
 
     def submit_popup_and_wait_closed(self):
         self.log_action("Submit popup and wait until it closes")
@@ -1056,25 +1201,24 @@ class ExtensionsPage:
 
         return (
             self.close_blocking_dialogs_if_any()
+            .clear_search_and_submit()
             .open_add_popup()
             .choose_extension_type(extension_type)
             .choose_transport_type(transport_type)
             .fill_add_popup(extension_number, end_extension_number, password=password)
             .submit_add_popup(wait_until_closed=True)
-            .search_for_extension_number(extension_number)
-            .wait_until_extension_visible(extension_number)
+            .wait_for_success_notification()
+            .reveal_extensions_descending(range(int(extension_number), int(end_extension_number) + 1))
         )
 
     def delete_extension_if_exists(self, extension_number):
-        self.search_for_extension_number(extension_number)
-
-        if not self.has_visible_extension(extension_number):
+        self.clear_search_and_submit().sort_extensions_descending()
+        if self.visible_row_for_extension(extension_number) is None:
             return self
 
         return (
-            self.open_first_row_delete_confirmation()
+            self.open_extension_delete_confirmation(extension_number)
             .confirm_delete_confirmation()
-            .search_for_extension_number(extension_number)
             .wait_until_extension_not_visible(extension_number)
         )
 

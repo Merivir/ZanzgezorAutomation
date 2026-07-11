@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 
-DEFAULT_MICROSIP_DIR = Path(__file__).resolve().parents[1] / "helper_tool" / "MicroSIP"
+DEFAULT_MICROSIP_DIR = Path(__file__).resolve().parent / "helper_tool" / "MicroSIP"
 DEFAULT_ACTIVE_CONFIG_PATH = Path.home() / "AppData" / "Roaming" / "MicroSIP" / "MicroSIP.ini"
 DEFAULT_CALL_NUMBER = "099452011"
 
@@ -20,7 +20,9 @@ class MicroSIPHelper:
     ):
         self.microsip_dir = Path(microsip_dir)
         self.exe_path = self.microsip_dir / "microsip.exe"
-        self.config_path = self.microsip_dir / "MicroSIP.ini"
+        local_config_path = self.microsip_dir / "MicroSIP.ini"
+        self.config_path = DEFAULT_ACTIVE_CONFIG_PATH if DEFAULT_ACTIVE_CONFIG_PATH.exists() else local_config_path
+        self.local_config_path = local_config_path
         self.server = server
         self.account_label = account_label
         self.call_number = call_number
@@ -48,19 +50,36 @@ class MicroSIPHelper:
         self.config_path.write_text(updated_content, encoding=encoding)
         return self
 
+    def restore_config_backup(self):
+        backup_path = self.config_path.with_suffix(f"{self.config_path.suffix}.bak")
+        if backup_path.exists():
+            self.config_path.write_bytes(backup_path.read_bytes())
+        return self
+
     def ensure_local_config_exists(self):
         if self.config_path.exists():
             return self
 
-        if not DEFAULT_ACTIVE_CONFIG_PATH.exists():
+        if not self.local_config_path.exists():
             raise AssertionError(
-                f"Local MicroSIP config is missing: {self.config_path}. "
+                f"Local MicroSIP config is missing: {self.local_config_path}. "
                 f"Active config was also not found: {DEFAULT_ACTIVE_CONFIG_PATH}."
             )
 
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config_path.write_bytes(DEFAULT_ACTIVE_CONFIG_PATH.read_bytes())
+        DEFAULT_ACTIVE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DEFAULT_ACTIVE_CONFIG_PATH.write_bytes(self.local_config_path.read_bytes())
+        self.config_path = DEFAULT_ACTIVE_CONFIG_PATH
         return self
+
+    def missing_setup_reason(self):
+        if not self.exe_path.exists():
+            return f"MicroSIP executable is missing: {self.exe_path}."
+        if not self.config_path.exists() and not self.local_config_path.exists():
+            return (
+                f"MicroSIP config is missing: {self.local_config_path}. "
+                f"Active config was also not found: {DEFAULT_ACTIVE_CONFIG_PATH}."
+            )
+        return ""
 
     def restart(self):
         subprocess.run(["taskkill", "/IM", "microsip.exe", "/F"], capture_output=True, text=True)

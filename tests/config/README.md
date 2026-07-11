@@ -4,13 +4,33 @@ This folder contains the configuration used by the automation tests.
 
 ## Files
 
-- `test_config.json`: main test configuration
+- `test_config.example.json`: safe configuration template committed to Git
+- `test_config.json`: ignored local configuration created from the template
 - `automation_config.py`: helpers for reading config values
 - `start_testing.py`: simple runner that reads active modules and sections
 
 ## How To Configure
 
-Edit [`test_config.json`](/c:/Users/meri.virabyan/Desktop/automation-api/tests/config/test_config.json).
+Create your ignored local configuration from the safe template:
+
+```powershell
+Copy-Item tests/config/test_config.example.json tests/config/test_config.json
+```
+
+Keep credentials out of JSON when possible and set them for the current PowerShell session:
+
+```powershell
+$env:TEST_USERNAME="your-user"
+$env:TEST_PASSWORD="your-password"
+$env:DB_HOST="database-host"
+$env:DB_PORT="3306"
+$env:DB_NAME="database-name"
+$env:DB_USER="database-user"
+$env:DB_PASSWORD="database-password"
+```
+
+Role-specific credentials can use names such as `TEST_ADMIN_USERNAME`,
+`TEST_ADMIN_PASSWORD`, `TEST_AGENT_USERNAME`, and `TEST_AGENT_PASSWORD`.
 
 ### Active Client
 
@@ -45,8 +65,8 @@ Each client can have multiple users:
 ```json
 "users": {
   "default": {
-    "username": "meri_admin",
-    "password": "Test12345",
+    "username": "",
+    "password": "",
     "enabled": true
   }
 }
@@ -101,7 +121,7 @@ Behavior:
 2. finds active modules
 3. finds active sections for each module
 4. sets `ACTIVE_SECTIONS` environment variable
-5. runs `tests/modules/{module_name}/test_{module_name}.py`
+5. runs the selected section files through one pytest process
 
 For example, if `administration` is enabled, it runs:
 
@@ -138,13 +158,32 @@ pytest -s tests/modules/administration/test_extensions.py::test_extensions_page_
 - test files should usually be named `test_*.py`
 - test functions should usually be named `test_*`
 
-## Current Limitation
+## Test Tiers
 
-`start_testing.py` currently runs module files with:
+Every pytest run honors the active client's module and section `enabled` flags
+from `test_config.json`. Normal runs preserve all original cases in those sections.
 
-```python
-os.system(f"python {test_file}")
+```powershell
+python -m pytest -v -s
+python -m pytest --suite focused -v -s
+python -m pytest --suite smoke -v -s
+python -m pytest --suite extended -v -s
+python -m pytest --suite destructive -v -s
+python -m pytest --suite integration -v -s
+python -m pytest --suite microsip -v -s
+python -m pytest --suite all -v -s
 ```
 
-That means it behaves like a custom Python runner.
-As the project grows, it will be better to run the tests with `pytest` directly instead of launching test files with plain `python`.
+Destructive, integration, and MicroSIP tests are opt-in because they can change
+external state or require additional services.
+
+Use `--all-modules` to ignore config enablement temporarily. A direct `-m`
+expression is also supported and takes precedence over `--suite`:
+
+```powershell
+python -m pytest --all-modules --suite smoke -v -s
+python -m pytest --all-modules -m notifications -v -s
+```
+
+Running `python tests/config/start_testing.py` preserves the original workflow:
+it executes all cases from the sections enabled in `test_config.json`.

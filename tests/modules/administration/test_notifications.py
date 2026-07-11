@@ -1,5 +1,4 @@
 import pytest
-import time
 
 from tests.config.automation_config import (
     get_active_client,
@@ -11,6 +10,9 @@ from tests.config.testcase import testcase
 from tests.pages.administration_page import AdministrationPage
 from tests.pages.login_page import LoginPage
 from tests.pages.notifications_page import NotificationsPage
+
+
+pytestmark = pytest.mark.regression
 
 
 def skip_not_automated_yet():
@@ -62,6 +64,7 @@ def first_record_with_value_or_skip(notifications_page, field):
 @testcase("NOTIF-001", "Notifications: Open Notifications page")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.smoke
 def test_notifications_page_opens(opened_notifications_page):
     assert opened_notifications_page.is_loaded(), "Notifications page did not load correctly."
     assert opened_notifications_page.has_main_controls(), "Not all Notifications main controls are visible."
@@ -71,6 +74,7 @@ def test_notifications_page_opens(opened_notifications_page):
 @testcase("NOTIF-002", "Notifications: Check main table data loading")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.smoke
 def test_notifications_table_data_loads(opened_notifications_page):
     opened_notifications_page.clear_filters()
     assert opened_notifications_page.visible_table_records(), "Expected notification records to load in the table."
@@ -79,6 +83,7 @@ def test_notifications_table_data_loads(opened_notifications_page):
 @testcase("NOTIF-003", "Notifications: Check default result count")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_default_result_count_is_displayed(opened_notifications_page):
     opened_notifications_page.clear_filters()
     result_count = opened_notifications_page.result_count()
@@ -92,6 +97,7 @@ def test_default_result_count_is_displayed(opened_notifications_page):
 @testcase("NOTIF-004", "Notifications: Search notification by Category")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.smoke
 def test_search_notification_by_category(opened_notifications_page):
     opened_notifications_page.clear_filters()
     record = first_record_with_value_or_skip(opened_notifications_page, "Category")
@@ -107,6 +113,7 @@ def test_search_notification_by_category(opened_notifications_page):
 @testcase("NOTIF-005", "Notifications: Search by partial Category")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_search_by_partial_category(opened_notifications_page):
     opened_notifications_page.clear_filters()
     record = first_record_with_value_or_skip(opened_notifications_page, "Category")
@@ -151,6 +158,7 @@ def test_filter_by_type(opened_notifications_page):
 @testcase("NOTIF-008", "Notifications: Filter by Theme")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_filter_by_theme(opened_notifications_page):
     opened_notifications_page.clear_filters()
     record = first_record_with_value_or_skip(opened_notifications_page, "Theme")
@@ -166,6 +174,7 @@ def test_filter_by_theme(opened_notifications_page):
 @testcase("NOTIF-009", "Notifications: Filter by Active status")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_filter_by_active_status(opened_notifications_page):
     opened_notifications_page.clear_filters()
     record = first_record_with_value_or_skip(opened_notifications_page, "Active")
@@ -221,6 +230,7 @@ def test_clear_filters(opened_notifications_page):
 @testcase("NOTIF-012", "Notifications: Clear selected dropdown value")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_clear_selected_dropdown_value(opened_notifications_page):
     opened_notifications_page.clear_filters()
     record = first_record_with_value_or_skip(opened_notifications_page, "Active")
@@ -239,6 +249,7 @@ def test_clear_selected_dropdown_value(opened_notifications_page):
 @testcase("NOTIF-013", "Notifications: Open Add form")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_open_add_form(opened_notifications_page):
     opened_notifications_page.open_add_form()
     try:
@@ -266,6 +277,7 @@ def test_add_duplicate_notification_name(opened_notifications_page):
 @testcase("NOTIF-016", "Notifications: Open Edit form")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_open_edit_form(opened_notifications_page):
     opened_notifications_page.clear_filters()
     first_record_or_skip(opened_notifications_page)
@@ -375,6 +387,7 @@ def test_deleted_notification_cache_behavior(opened_notifications_page):
 @testcase("NOTIF-029", "Notifications: Open Translate form")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_open_translate_form(opened_notifications_page):
     opened_notifications_page.clear_filters()
     first_record_or_skip(opened_notifications_page)
@@ -404,6 +417,7 @@ def test_missing_localization_fallback(opened_notifications_page):
 @testcase("NOTIF-032", "Notifications: Pagination works correctly")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_pagination_works_correctly(opened_notifications_page):
     opened_notifications_page.clear_filters()
 
@@ -416,6 +430,7 @@ def test_pagination_works_correctly(opened_notifications_page):
 @testcase("NOTIF-033", "Notifications: Column visibility works correctly")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_column_visibility_works_correctly(opened_notifications_page):
     opened_notifications_page.clear_filters()
     initial_column_count = opened_notifications_page.visible_table_column_count()
@@ -428,13 +443,13 @@ def test_column_visibility_works_correctly(opened_notifications_page):
 
     try:
         opened_notifications_page.set_column_option_visibility(column_to_toggle, False)
-        time.sleep(1)
+        opened_notifications_page.wait_for_ui_idle()
         assert opened_notifications_page.visible_table_column_count() == initial_column_count - 1, (
             f"Expected one fewer visible column after hiding {column_to_toggle!r}."
         )
 
         opened_notifications_page.set_column_option_visibility(column_to_toggle, True)
-        time.sleep(1)
+        opened_notifications_page.wait_for_ui_idle()
         assert opened_notifications_page.visible_table_column_count() == initial_column_count, (
             f"Expected column count to return after showing {column_to_toggle!r}."
         )
@@ -446,6 +461,7 @@ def test_column_visibility_works_correctly(opened_notifications_page):
 @testcase("NOTIF-034", "Notifications: Generic ordering check")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_generic_ordering_check(opened_notifications_page):
     opened_notifications_page.clear_filters()
     before_sort_count = opened_notifications_page.visible_record_count()
@@ -461,6 +477,7 @@ def test_generic_ordering_check(opened_notifications_page):
 @testcase("NOTIF-035", "Notifications: Actions after filtering/sorting")
 @pytest.mark.administration
 @pytest.mark.notifications
+@pytest.mark.extended
 def test_actions_after_filtering_sorting(opened_notifications_page):
     opened_notifications_page.clear_filters()
     record = first_record_with_value_or_skip(opened_notifications_page, "Category")
