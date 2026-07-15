@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import tempfile
 from datetime import datetime
@@ -6,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
@@ -52,6 +54,125 @@ def _skip_reason(report):
 
     return str(report.longrepr).replace("Skipped: ", "")
 
+
+
+def _safe_filename(value):
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_")[:180]
+
+
+def _short_failure_text(report):
+    text = str(report.longreprtext or report.longrepr or "").strip()
+    if not text:
+        return "No failure details were reported."
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    useful = []
+    for line in reversed(lines):
+        if line.startswith(("E   ", "selenium.common.exceptions", "AssertionError", "TimeoutException")):
+            useful.append(line.removeprefix("E   "))
+        if len(useful) >= 3:
+            break
+
+    if useful:
+        return " | ".join(reversed(useful))[:700]
+
+    return lines[-1][:700]
+
+
+def _driver_from_item(item):
+    for fixture_name in (
+        "driver",
+        "opened_extensions_page",
+        "opened_notifications_page",
+        "opened_special_numbers_page",
+    ):
+        value = item.funcargs.get(fixture_name)
+        if value is None:
+            continue
+        return getattr(value, "driver", value)
+    return None
+
+
+def _save_failure_artifacts(item):
+    driver = _driver_from_item(item)
+    if driver is None:
+        return []
+
+    artifact_dir = DOWNLOAD_DIR / "failures"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    name = _safe_filename(item.nodeid)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = artifact_dir / f"{timestamp}_{name}"
+    artifacts = []
+
+    try:
+        _write_log(f"Browser URL: {driver.current_url}")
+        _write_log(f"Browser title: {driver.title}")
+    except Exception as error:
+        _write_log(f"Browser state unavailable: {error}")
+
+    try:
+        screenshot_path = base.with_suffix(".png")
+        driver.save_screenshot(str(screenshot_path))
+        artifacts.append(screenshot_path)
+    except Exception as error:
+        _write_log(f"Screenshot unavailable: {error}")
+
+    try:
+        html_path = base.with_suffix(".html")
+        html_path.write_text(driver.page_source, encoding="utf-8")
+        artifacts.append(html_path)
+    except Exception as error:
+        _write_log(f"Page source unavailable: {error}")
+
+    return artifacts
+
+
+def _short_value(value):
+    text = repr(value)
+    return text if len(text) <= 220 else text[:217] + "..."
+
+
+def _describe_wait_condition(method, message=""):
+    if message:
+        return message
+
+    name = getattr(method, "__qualname__", None) or getattr(method, "__name__", None) or method.__class__.__name__
+    details = []
+    closure = getattr(method, "__closure__", None) or []
+    for cell in closure:
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            continue
+        if isinstance(value, tuple) and len(value) == 2:
+            details.append(_short_value(value))
+        elif isinstance(value, str) and value:
+            details.append(value)
+
+    if details:
+        return f"{name}: {', '.join(details[:2])}"
+    return name
+
+
+class LoggingWebDriverWait(WebDriverWait):
+    def until(self, method, message=""):
+        description = _describe_wait_condition(method, message)
+        _write_log(f"WAITING ({self._timeout}s): {description}")
+        try:
+            return super().until(method, message)
+        except TimeoutException:
+            _write_log(f"WAIT TIMEOUT ({self._timeout}s): {description}")
+            raise
+
+    def until_not(self, method, message=""):
+        description = _describe_wait_condition(method, message)
+        _write_log(f"WAITING NOT ({self._timeout}s): {description}")
+        try:
+            return super().until_not(method, message)
+        except TimeoutException:
+            _write_log(f"WAIT NOT TIMEOUT ({self._timeout}s): {description}")
+            raise
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -154,7 +275,14 @@ def pytest_runtest_makereport(item, call):
     _write_log(f"Title: {title}")
 
     if report.failed:
-        _write_log("Failure reason:")
+        _write_log("Failure summary:")
+        _write_log(_short_failure_text(report))
+        artifacts = _save_failure_artifacts(item)
+        if artifacts:
+            _write_log("Failure artifacts:")
+            for artifact in artifacts:
+                _write_log(str(artifact))
+        _write_log("Full traceback follows:")
         _write_log(report.longreprtext)
     elif report.skipped:
         _write_log(f"Skip reason: {_skip_reason(report)}")
@@ -263,7 +391,7 @@ def driver():
 
 @pytest.fixture(scope="module")
 def wait(driver):
-    return WebDriverWait(driver, 20)
+    return LoggingWebDriverWait(driver, 20)
 
 
 @pytest.fixture

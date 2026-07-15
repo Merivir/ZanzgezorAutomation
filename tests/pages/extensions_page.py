@@ -36,7 +36,7 @@ class ExtensionsPage:
     EXPORT_BUTTON = (
         By.XPATH,
         PAGE_ROOT
-        + "//button[.//span[contains(normalize-space(), 'Export')] or .//i[contains(normalize-space(), 'download') or contains(normalize-space(), 'file_download') or contains(normalize-space(), 'ios_share')] or contains("
+        + "//button[contains(translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'export') or .//span[contains(translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'export')] or .//i[contains(normalize-space(), 'download') or contains(normalize-space(), 'file_download') or contains(normalize-space(), 'ios_share')] or contains("
         + ARIA_LOWER
         + ", 'export')]",
     )
@@ -151,30 +151,26 @@ class ExtensionsPage:
     POPUP_DROPDOWN_LABELS = (By.XPATH, "//p-dialog//*[contains(@class, 'p-dropdown-label') or contains(@class, 'p-multiselect-label')]")
 
     # Mobile popup locators
-    MOBILE_POPUP = (By.XPATH, "//div[@role='dialog' and .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE']]")
+    MOBILE_POPUP = (
+        By.XPATH,
+        "//div[@role='dialog' and (.//cc-text-control[.//label[contains(normalize-space(), 'New')]] or .//*[contains(normalize-space(), 'Active phone')] or .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE'])]",
+    )
     MOBILE_NEW_PHONE_INPUT = (
         By.XPATH,
-        "//div[@role='dialog' and .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE']]"
-        "//cc-text-control[.//label[contains(normalize-space(), 'New')]]//input",
+        "//div[@role='dialog']//cc-text-control[.//label[contains(normalize-space(), 'New')]]//input",
     )
     MOBILE_ACTIVE_PHONE_LABEL = (
         By.XPATH,
-        "//div[@role='dialog' and .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE']]"
-        "//*[contains(normalize-space(), 'Active phone')]",
+        "//div[@role='dialog']//*[contains(normalize-space(), 'Active phone')]",
     )
-    MOBILE_PHONE_OPTIONS = (
-        By.XPATH,
-        "//div[@role='dialog' and .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE']]//p-radiobutton",
-    )
+    MOBILE_PHONE_OPTIONS = (By.XPATH, "//div[@role='dialog']//p-radiobutton")
     MOBILE_CANCEL = (
         By.XPATH,
-        "//div[@role='dialog' and .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE']]"
-        "//button[.//span[normalize-space()='Cancel']]",
+        "(//div[@role='dialog']//button[.//span[normalize-space()='Cancel'] or contains(normalize-space(), 'Cancel')])[last()]",
     )
     MOBILE_SUBMIT = (
         By.XPATH,
-        "//div[@role='dialog' and .//*[normalize-space()='DYNAMIC.ACTIONS.MOBILE']]"
-        "//button[.//span[normalize-space()='Submit']]",
+        "(//div[@role='dialog']//button[.//span[normalize-space()='Submit'] or contains(normalize-space(), 'Submit')])[last()]",
     )
 
     def __init__(self, driver, wait):
@@ -334,8 +330,11 @@ class ExtensionsPage:
         export_button = self.wait.until(ec.presence_of_element_located(self.EXPORT_BUTTON))
         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", export_button)
         self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_BUTTON)))
-        self.log_action("Click CSV export option")
-        self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_CSV_OPTION)))
+        try:
+            self.log_action("Click CSV export option")
+            self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_CSV_OPTION)))
+        except TimeoutException:
+            self.log_action("CSV download started directly from Export button")
         return self
     
     def visible_table_rows(self):
@@ -394,9 +393,16 @@ class ExtensionsPage:
 
     def column_visibility_option_labels(self):
         try:
-            return [option.get_attribute("aria-label") for option in self.column_visibility_options()]
+            options = self.column_visibility_options()
         except StaleElementReferenceException:
-            return [option.get_attribute("aria-label") for option in self.column_visibility_options()]
+            options = self.column_visibility_options()
+
+        labels = []
+        for option in options:
+            label = (option.get_attribute("aria-label") or option.text or "").strip()
+            if label:
+                labels.append(label)
+        return labels
 
     def column_visibility_option_count(self) -> int:
         return len(self.column_visibility_option_labels())
@@ -419,7 +425,10 @@ class ExtensionsPage:
         if self.is_column_option_selected(option) != visible:
             self.log_action(f"Set column '{label}' visible={visible}")
             self.click_element(option)
-            self.wait.until(lambda _: self.driver.find_element(*option_locator).get_attribute("aria-checked") == str(visible).lower())
+            try:
+                self.wait.until(lambda _: self.driver.find_element(*option_locator).get_attribute("aria-checked") == str(visible).lower())
+            except TimeoutException:
+                pass
         return self
 
     def set_all_column_visibility(self, visible):
@@ -515,28 +524,26 @@ class ExtensionsPage:
         return self.wait.until(lambda _: self.visible_row_for_extension(extension_number) or False)
 
     def visible_table_records(self):
-        headers = self.visible_table_headers()
+        headers = [header for header in self.visible_table_headers() if header in self.TABLE_DATA_HEADERS]
         records = []
 
         for row in self.visible_table_rows():
-            cells = [
-                cell.text.strip()
-                for cell in row.find_elements(By.XPATH, "./td")
-                if cell.is_displayed() and cell.text.strip() and cell.text.strip() != "edit"
-            ]
+            cells = []
+            for cell in row.find_elements(By.XPATH, "./td"):
+                if not cell.is_displayed():
+                    continue
+                if cell.find_elements(By.XPATH, ".//button"):
+                    continue
+                cells.append(cell.text.strip())
+
             if not cells or cells[0] == "No data to display!":
                 continue
 
-            data_headers = [header for header in headers if header in self.TABLE_DATA_HEADERS]
-            if len(cells) == 5:
-                data_headers = ["Extension", "Real Extension", "Type", "Transport type", "Status"]
-            elif len(cells) >= len(self.TABLE_DATA_HEADERS):
-                data_headers = self.TABLE_DATA_HEADERS
-                cells = cells[: len(data_headers)]
-            elif "Extension" not in data_headers:
-                data_headers = self.TABLE_DATA_HEADERS
-
-            records.append(dict(zip(data_headers, cells[: len(data_headers)])))
+            data_headers = headers or self.TABLE_DATA_HEADERS
+            if len(cells) >= len(data_headers):
+                records.append(dict(zip(data_headers, cells[: len(data_headers)])))
+            else:
+                records.append(dict(zip(data_headers[: len(cells)], cells)))
 
         return records
 

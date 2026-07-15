@@ -77,6 +77,14 @@ class NotificationsPage:
     COLUMN_OPTIONS = (By.XPATH, "//div[contains(@class, 'p-multiselect-panel')]//li[@role='option']")
     DROPDOWN_PANEL = (By.XPATH, "//div[contains(@class, 'p-dropdown-panel')]")
     DROPDOWN_OPTIONS = (By.XPATH, "//*[@role='option']")
+    EXPORT_BUTTON = (
+        By.XPATH,
+        PAGE_ROOT
+        + "//button[contains(translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'export') or .//span[contains(translate(normalize-space(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'export')] or .//i[contains(normalize-space(), 'download') or contains(normalize-space(), 'file_download') or contains(normalize-space(), 'ios_share')] or contains("
+        + ARIA_LOWER
+        + ", 'export')]",
+    )
+    EXPORT_CSV_OPTION = (By.XPATH, "//div[contains(@class, 'export-table-items')]//*[normalize-space()='CSV']")
     ADD_BUTTON = (
         By.XPATH,
         PAGE_ROOT
@@ -156,6 +164,7 @@ class NotificationsPage:
             self.RESULTS_COUNT,
             self.COLUMN_TOGGLE,
             self.TABLE,
+            self.EXPORT_BUTTON,
             self.ADD_BUTTON,
         ]
         return all(self.has_visible_element(locator) for locator in locators)
@@ -401,6 +410,18 @@ class NotificationsPage:
             self.log_action(f"Set column '{label}' visible={visible}")
             self.click_element(option)
             self.wait.until(lambda _: self.driver.find_element(*option_locator).get_attribute("aria-checked") == str(visible).lower())
+        return self
+
+    def export_notifications(self):
+        self.log_action("Click Export")
+        export_button = self.wait.until(ec.presence_of_element_located(self.EXPORT_BUTTON))
+        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", export_button)
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_BUTTON)))
+        try:
+            self.log_action("Click CSV export option")
+            self.click_element(self.wait.until(ec.element_to_be_clickable(self.EXPORT_CSV_OPTION)))
+        except TimeoutException:
+            self.log_action("CSV download started directly from Export button")
         return self
 
     def open_add_form(self):

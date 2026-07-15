@@ -1,0 +1,472 @@
+import time
+
+
+def search_extension_and_get_rows(extensions_page, extension_number):
+    extensions_page.search_for_extension_number(extension_number)
+    extensions_page.wait_for_ui_idle()
+    return extensions_page.visible_table_rows()
+
+
+def clear_search_and_get_rows(extensions_page):
+    extensions_page.search_for_extension_number("")
+    extensions_page.wait_for_ui_idle()
+    return extensions_page.visible_table_rows()
+
+
+def clear_filters_and_get_rows(extensions_page):
+    extensions_page.clear_search_and_submit()
+    extensions_page.wait_for_ui_idle()
+    return extensions_page.visible_table_rows()
+
+
+def export_extensions_and_read_rows(extensions_page, download_dir, read_csv_rows, wait_for_csv_download):
+    extensions_page.export_extensions()
+    extensions_page.wait_for_ui_idle()
+    csv_path = wait_for_csv_download(download_dir)
+    return read_csv_rows(csv_path)
+
+
+def collect_table_records_from_all_pages(extensions_page):
+    records = extensions_page.all_visible_table_records()
+    extensions_page.wait_for_ui_idle()
+    assert records, "Expected visible table records from at least one page before export."
+    return records
+
+
+def open_edit_popup_for_first_extension(extensions_page):
+    extensions_page.go_to_first_page()
+    extensions_page.wait_for_ui_idle()
+    first_row_text = extensions_page.first_visible_table_row_text()
+    assert first_row_text, "Expected at least one extension row before opening Edit popup."
+    extensions_page.open_first_row_edit_popup()
+    extensions_page.wait_for_ui_idle()
+    return first_row_text
+
+
+def assert_edit_popup_matches_row(extensions_page, row_text):
+    assert extensions_page.is_add_popup_open(), "Edit popup did not open."
+    popup_values = extensions_page.popup_field_values()
+    assert popup_values, "Expected Edit popup to show existing record values."
+
+    popup_password = extensions_page.edit_popup_password_value()
+    assert popup_password in row_text, (
+        f"Edit popup Password value is not visible in the selected table row. "
+        f"Popup value: {popup_password!r}; row text: {row_text!r}"
+    )
+
+    popup_type = extensions_page.edit_popup_type_value()
+    assert popup_type in row_text, (
+        f"Edit popup Type value is not visible in the selected table row. "
+        f"Popup value: {popup_type!r}; row text: {row_text!r}"
+    )
+
+    popup_transport_type = extensions_page.edit_popup_transport_type_value()
+    assert popup_transport_type in row_text, (
+        f"Edit popup Transport type value is not visible in the selected table row. "
+        f"Popup value: {popup_transport_type!r}; row text: {row_text!r}"
+    )
+
+
+def close_add_popup_if_open(extensions_page):
+    extensions_page.wait_for_ui_idle()
+    if extensions_page.is_add_popup_open():
+        extensions_page.close_add_popup()
+
+
+def open_add_popup_and_assert_controls(extensions_page):
+    extensions_page.open_add_popup()
+    assert extensions_page.has_add_popup_controls(), "Not all Add popup controls are visible."
+
+
+def trigger_add_required_validation(extensions_page):
+    extensions_page.open_add_popup()
+    extensions_page.touch_add_popup_required_fields()
+    extensions_page.wait_for_ui_idle()
+
+
+def assert_add_required_validation(extensions_page):
+    assert extensions_page.is_add_popup_submit_disabled(), "Submit should be disabled when required Add fields are empty."
+    extensions_page.wait_for_ui_idle()
+    assert extensions_page.add_popup_number_fields_are_empty(), "Start and End should stay empty while required validation is shown."
+
+
+def open_add_popup_with_password_visible(extensions_page):
+    extensions_page.clear_search_and_submit()
+    extensions_page.wait_for_ui_idle()
+    extensions_page.open_add_popup()
+    extensions_page.wait_for_ui_idle()
+    assert extensions_page.is_add_popup_open(), "Add popup did not open."
+    assert extensions_page.is_add_popup_password_visible(), "Password field should be visible before Generate Password is checked."
+
+
+def enable_generated_password_in_add_popup(extensions_page):
+    extensions_page.toggle_add_popup_generate_password()
+    extensions_page.wait_for_ui_idle()
+    assert not extensions_page.is_add_popup_password_visible(), "Password field should be hidden after Generate Password is checked."
+
+
+def open_mobile_popup_for_first_extension(extensions_page):
+    extensions_page.clear_search_and_submit()
+    extensions_page.wait_for_ui_idle()
+    extensions_page.go_to_first_page()
+    extensions_page.wait_for_ui_idle()
+    extensions_page.open_first_row_mobile_popup()
+    extensions_page.wait_for_ui_idle()
+
+
+def assert_mobile_popup_controls(extensions_page):
+    assert extensions_page.is_mobile_popup_open(), "Mobile popup did not open."
+    assert extensions_page.has_mobile_popup_controls(), "Not all Mobile popup controls are visible."
+
+
+def close_mobile_popup_if_open(extensions_page):
+    extensions_page.wait_for_ui_idle()
+    extensions_page.close_mobile_popup()
+
+
+def navigate_to_next_page_and_back(extensions_page):
+    extensions_page.clear_search_and_submit()
+    extensions_page.wait_for_ui_idle()
+    extensions_page.go_to_first_page()
+    extensions_page.wait_for_ui_idle()
+
+    first_page_number = extensions_page.current_page_number()
+    first_page_records = extensions_page.visible_table_records()
+    assert first_page_records, "Expected records on the first page before testing pagination."
+
+    return first_page_number, first_page_records
+
+
+def assert_next_page_changes_records(extensions_page, first_page_number, first_page_records, pytest_module):
+    if not extensions_page.go_to_next_page():
+        pytest_module.skip("Only one Extensions page is available; pagination navigation cannot be verified.")
+    extensions_page.wait_for_ui_idle()
+
+    second_page_number = extensions_page.current_page_number()
+    second_page_records = extensions_page.visible_table_records()
+    assert second_page_records, "Expected records on the next page after pagination."
+    assert second_page_number != first_page_number or second_page_records != first_page_records, (
+        "Expected paginator to move to another page or show different records."
+    )
+
+
+def return_to_previous_page(extensions_page, expected_page_number):
+    assert extensions_page.go_to_previous_page(), "Expected Previous Page to be available after moving forward."
+    extensions_page.wait_for_ui_idle()
+    assert extensions_page.current_page_number() == expected_page_number, "Expected paginator to return to the first page."
+
+
+def publish_changes_and_assert_page_loaded(extensions_page):
+    extensions_page.clear_search_and_submit()
+    extensions_page.wait_for_ui_idle()
+    extensions_page.publish_changes()
+    extensions_page.wait_for_ui_idle()
+    assert extensions_page.is_loaded(), "Extensions page did not remain loaded after publishing changes."
+
+
+def assert_extension_is_visible(extensions_page, extension_number, context):
+    assert extensions_page.has_visible_extension(extension_number), (
+        f"Expected extension '{extension_number}' to be visible {context}."
+    )
+
+
+def assert_extension_record_is_visible(extensions_page, extension_number, context):
+    record = extensions_page.visible_record_for_extension(extension_number)
+    assert record and record["Extension"] == str(extension_number), (
+        f"Expected extension '{extension_number}' {context}, got: {record}"
+    )
+    return record
+
+
+def generate_new_password_in_edit_popup(extensions_page, extension_number):
+    assert_extension_record_is_visible(extensions_page, extension_number, "before editing")
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+
+    try:
+        assert extensions_page.is_add_popup_open(), "Edit popup did not open."
+        old_password = extensions_page.edit_popup_password_value()
+        assert extensions_page.is_edit_popup_password_visible(), (
+            "Password field should be visible before Generate Password is checked."
+        )
+
+        extensions_page.toggle_edit_popup_generate_password()
+        extensions_page.wait_for_ui_idle()
+        assert not extensions_page.is_edit_popup_password_visible(), (
+            "Password field should be hidden after Generate Password is checked."
+        )
+
+        extensions_page.submit_edit_popup()
+        extensions_page.wait_for_ui_idle()
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    return old_password
+
+
+def assert_generated_password_was_saved(extensions_page, extension_number, old_password):
+    extensions_page.reveal_extensions_descending([extension_number])
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+
+    try:
+        generated_password = extensions_page.edit_popup_password_value()
+        assert generated_password, "Expected generated password to be visible after reopening Edit popup."
+        assert generated_password != old_password, (
+            f"Expected generated password to differ from old password {old_password!r}, got {generated_password!r}."
+        )
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def edit_extension_and_save_changes(extensions_page, extension_number):
+    assert_extension_record_is_visible(extensions_page, extension_number, "before editing")
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+
+    try:
+        assert extensions_page.is_add_popup_open(), "Edit popup did not open."
+        original_password = extensions_page.edit_popup_password_value()
+        updated_password = f"{original_password}!"
+
+        updated_type = extensions_page.choose_different_extension_type()
+        extensions_page.wait_for_ui_idle()
+        updated_transport_type = extensions_page.choose_different_transport_type()
+        extensions_page.wait_for_ui_idle()
+        extensions_page.set_edit_popup_password(updated_password)
+        extensions_page.wait_for_ui_idle()
+
+        extensions_page.submit_edit_popup()
+        extensions_page.wait_for_ui_idle()
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    return updated_password, updated_type, updated_transport_type
+
+
+def assert_saved_extension_changes_are_visible(
+    extensions_page,
+    extension_number,
+    updated_password,
+    updated_type,
+    updated_transport_type,
+):
+    extensions_page.reveal_extensions_descending([extension_number])
+    updated_record = assert_extension_record_is_visible(extensions_page, extension_number, "after saving Edit")
+
+    assert updated_record["Type"] == updated_type, (
+        f"Type was not updated in table. Expected {updated_type!r}, got {updated_record['Type']!r}."
+    )
+    assert updated_record["Transport type"] == updated_transport_type, (
+        "Transport type was not updated in table. "
+        f"Expected {updated_transport_type!r}, got {updated_record['Transport type']!r}."
+    )
+
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+    try:
+        saved_password = extensions_page.edit_popup_password_value()
+        assert saved_password == updated_password, (
+            f"Password was not updated in Edit popup. Expected {updated_password!r}, got {saved_password!r}."
+        )
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def change_extension_values_and_cancel(extensions_page, extension_number):
+    original_record = assert_extension_record_is_visible(extensions_page, extension_number, "before editing")
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+
+    try:
+        assert extensions_page.is_add_popup_open(), "Edit popup did not open."
+        original_password = extensions_page.edit_popup_password_value()
+        assert original_password, "Expected existing Password value before testing Cancel."
+
+        extensions_page.choose_different_extension_type()
+        extensions_page.wait_for_ui_idle()
+        extensions_page.choose_different_transport_type()
+        extensions_page.wait_for_ui_idle()
+        extensions_page.set_edit_popup_password(f"Cancel{int(time.time())}")
+        extensions_page.wait_for_ui_idle()
+        extensions_page.close_add_popup()
+        extensions_page.wait_for_ui_idle()
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    return original_record, original_password
+
+
+def assert_cancelled_extension_changes_were_not_saved(
+    extensions_page,
+    extension_number,
+    original_record,
+    original_password,
+):
+    extensions_page.reveal_extensions_descending([extension_number])
+    current_record = assert_extension_record_is_visible(extensions_page, extension_number, "after cancelling Edit")
+
+    assert current_record["Type"] == original_record["Type"], (
+        f"Type changed after Cancel. Expected {original_record['Type']!r}, got {current_record['Type']!r}."
+    )
+    assert current_record["Transport type"] == original_record["Transport type"], (
+        "Transport type changed after Cancel. "
+        f"Expected {original_record['Transport type']!r}, got {current_record['Transport type']!r}."
+    )
+
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+    try:
+        current_password = extensions_page.edit_popup_password_value()
+        assert current_password == original_password, (
+            f"Password changed after Cancel. Expected {original_password!r}, got {current_password!r}."
+        )
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def cancel_row_delete_and_assert_record_remains(extensions_page, extension_number):
+    assert_extension_is_visible(extensions_page, extension_number, "before opening row delete confirmation")
+    extensions_page.open_extension_delete_confirmation(extension_number).cancel_delete_confirmation()
+
+    try:
+        assert not extensions_page.is_delete_confirmation_open(), "Row delete confirmation should be closed after Reject."
+    finally:
+        if extensions_page.is_delete_confirmation_open():
+            extensions_page.cancel_delete_confirmation()
+
+    assert_extension_is_visible(extensions_page, extension_number, "after cancelling row delete")
+    extensions_page.reveal_extensions_descending([extension_number])
+
+
+def delete_row_and_assert_record_is_removed(extensions_page, extension_number, remaining_extensions_lookup):
+    assert_extension_is_visible(extensions_page, extension_number, "before row delete")
+
+    extensions_page.open_extension_delete_confirmation(extension_number)
+    extensions_page.wait_for_ui_idle()
+    assert extensions_page.is_delete_confirmation_open(), "Row delete confirmation did not open."
+    extensions_page.confirm_delete_confirmation()
+    extensions_page.wait_for_success_notification()
+    extensions_page.wait_for_ui_idle()
+
+    assert not extensions_page.has_visible_extension(extension_number), (
+        f"Deleted extension '{extension_number}' is still visible after row delete."
+    )
+    assert not remaining_extensions_lookup([extension_number]), (
+        f"Deleted extension '{extension_number}' still exists in the database."
+    )
+
+
+def open_bottom_delete_popup_and_assert_fields(extensions_page):
+    extensions_page.open_bottom_delete_popup()
+    extensions_page.wait_for_ui_idle()
+    try:
+        assert extensions_page.is_add_popup_open(), "Bottom delete range popup did not open."
+        assert extensions_page.add_popup_number_fields_are_empty(), (
+            "Bottom delete range fields should be empty when the popup opens."
+        )
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def assert_extension_range_is_visible(extensions_page, start_extension, end_extension, context):
+    extension_range = range(int(start_extension), int(end_extension) + 1)
+    extensions_page.reveal_extensions_descending(extension_range)
+    assert_extension_is_visible(extensions_page, start_extension, context)
+    assert_extension_is_visible(extensions_page, end_extension, context)
+
+
+def cancel_bottom_delete_and_assert_range_remains(extensions_page, start_extension, end_extension):
+    extensions_page.open_bottom_delete_popup()
+    extensions_page.wait_for_ui_idle()
+    try:
+        assert extensions_page.is_add_popup_open(), "Bottom delete range popup did not open."
+        extensions_page.fill_add_popup(start_extension, end_extension)
+        extensions_page.wait_for_ui_idle()
+        extensions_page.close_add_popup()
+        extensions_page.wait_for_ui_idle()
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    assert_extension_range_is_visible(
+        extensions_page,
+        start_extension,
+        end_extension,
+        "after cancelling bottom delete",
+    )
+
+
+def delete_bottom_range_and_assert_removed(
+    extensions_page,
+    start_extension,
+    end_extension,
+    remaining_extensions_lookup,
+):
+    extensions_page.open_bottom_delete_popup()
+    extensions_page.wait_for_ui_idle()
+    try:
+        assert extensions_page.is_add_popup_open(), "Bottom delete range popup did not open."
+        extensions_page.fill_add_popup(start_extension, end_extension)
+        extensions_page.wait_for_ui_idle()
+        extensions_page.submit_add_popup(wait_until_closed=True)
+        if extensions_page.is_delete_confirmation_open():
+            extensions_page.confirm_delete_confirmation()
+        extensions_page.wait_for_success_notification()
+        extensions_page.wait_for_ui_idle()
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    deleted_range = list(range(int(start_extension), int(end_extension) + 1))
+    for extension_number in deleted_range:
+        assert not extensions_page.has_visible_extension(extension_number), (
+            f"Extension '{extension_number}' is still visible after bottom delete range removal."
+        )
+    remaining = remaining_extensions_lookup(deleted_range)
+    assert not remaining, f"Range deletion left extensions in the database: {remaining}"
+
+
+def assert_created_extension_is_visible(extensions_page, extension_number):
+    assert_extension_is_visible(extensions_page, extension_number, "after adding it")
+
+
+def assert_created_extension_range_exists(start_extension, end_extension):
+    assert start_extension and end_extension, "Expected disposable extension range to be created."
+
+
+def create_unpublished_extension(extensions_page, extension_number, password):
+    extensions_page.create_extension(extension_number=extension_number, password=password)
+
+
+def configure_microsip_account(microsip, extension_number, password):
+    microsip.configure_account(extension=extension_number, password=password).restart()
+
+
+def assert_microsip_call_is_declined(microsip, extension_number, password, message):
+    assert microsip.call_is_declined(extension=extension_number, password=password), message
+
+
+def assert_microsip_call_succeeds(microsip, extension_number, password, message):
+    assert microsip.call_succeeds(extension=extension_number, password=password), message
+
+
+def delete_extension_and_publish(extensions_page, extension_number):
+    extensions_page.delete_extension_if_exists(extension_number)
+    extensions_page.publish_changes()
+
+
+def call_number_from_softphone(softphone_page, extension_number, call_number):
+    softphone_page.switch_to_call_tab().select_online_extension(extension_number).call_number(call_number)
+
+def assert_search_field_is_empty(extensions_page):
+    search_value = extensions_page.driver.find_element(*extensions_page.SEARCH_INPUT).get_attribute("value")
+    assert search_value == "", "Expected search field to be empty after clearing filters."
+
+
+def assert_search_has_no_results(extensions_page, extension_number, expected_conditions):
+    extensions_page.search_for_extension_number(extension_number)
+    assert extensions_page.wait.until(
+        expected_conditions.text_to_be_present_in_element(
+            extensions_page.EMPTY_TABLE_MESSAGE,
+            "No data to display!",
+        )
+    )
