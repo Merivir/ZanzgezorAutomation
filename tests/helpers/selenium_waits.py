@@ -10,5 +10,11 @@ LOADING_INDICATORS = (
 
 def wait_for_ui_idle(driver, wait):
     """Wait until the browser and observable application loading state are idle."""
-    wait.until(lambda current_driver: current_driver.execute_script("return document.readyState") == "complete")
-    wait.until(ec.invisibility_of_element_located(("css selector", LOADING_INDICATORS)))
+    wait.until(
+        lambda current_driver: current_driver.execute_script("return document.readyState") == "complete",
+        "Browser document is fully loaded",
+    )
+    wait.until(
+        ec.invisibility_of_element_located(("css selector", LOADING_INDICATORS)),
+        "Loading indicators are hidden",
+    )

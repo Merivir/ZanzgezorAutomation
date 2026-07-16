@@ -2,13 +2,25 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import ElementClickInterceptedException, StaleElementReferenceException, TimeoutException
 
 from tests.helpers.selenium_waits import wait_for_ui_idle
 
 
 class ExtensionsPage:
-    TABLE_DATA_HEADERS = ["Extension", "Real Extension", "Type", "Transport type", "Password", "Status"]
+    TABLE_DATA_HEADERS = ["Extension", "Real Extension", "Password", "Type", "Transport type", "Status"]
+    TABLE_HEADER_ALIASES = {
+        "extension": "Extension",
+        "real ext": "Real Extension",
+        "real extension": "Real Extension",
+        "number": "Real Extension",
+        "password": "Password",
+        "type": "Type",
+        "transport type": "Transport type",
+        "transport": "Transport type",
+        "status": "Status",
+    }
 
     PAGE_ROOT = (
         "(//*[self::cc-main-page or self::cc-main or contains(@class, 'pageContainer')]"
@@ -250,6 +262,11 @@ class ExtensionsPage:
     def is_add_popup_submit_enabled(self) -> bool:
         return not self.is_add_popup_submit_disabled()
 
+    def wait_for_add_popup_submit_enabled(self):
+        self.log_action("Verify popup Submit is enabled")
+        self.wait.until(lambda _: self.is_add_popup_submit_enabled(), "Popup Submit button is enabled")
+        return self
+
     def add_popup_required_error_count(self) -> int:
         return len(self.driver.find_elements(*self.ADD_POPUP_REQUIRED_ERRORS))
 
@@ -266,7 +283,12 @@ class ExtensionsPage:
         return all(self.has_required_error_for_label(label) for label in labels)
 
     def wait_for_add_popup_required_errors_for(self, labels):
-        self.wait.until(lambda _: self.has_add_popup_required_errors_for(labels))
+        self.log_action(f"Verify required error messages are shown for: {', '.join(labels)}")
+        self.wait.until(
+            lambda _: self.has_add_popup_required_errors_for(labels),
+            f"Required error messages visible for: {', '.join(labels)}",
+        )
+        self.log_action(f"Required error messages are shown for: {', '.join(labels)}")
 
     def add_popup_number_fields_are_empty(self) -> bool:
         start_value = self.driver.find_element(*self.ADD_POPUP_START_INPUT).get_attribute("value")
@@ -294,10 +316,28 @@ class ExtensionsPage:
         return all(self.has_required_validation_for_label(label) for label in labels)
 
     def wait_for_add_popup_required_validation_for(self, labels):
-        self.wait.until(lambda _: self.has_add_popup_required_validation_for(labels))
+        self.log_action(f"Verify required validation is shown for: {', '.join(labels)}")
+        self.wait.until(
+            lambda _: self.has_add_popup_required_validation_for(labels),
+            f"Required validation visible for: {', '.join(labels)}",
+        )
+        self.log_action(f"Required validation is shown for: {', '.join(labels)}")
 
     def wait_for_invalid_state_for_label(self, label_text):
-        self.wait.until(lambda _: self.has_invalid_state_for_label(label_text))
+        self.log_action(f"Verify invalid state is shown for field: {label_text}")
+        self.wait.until(lambda _: self.has_invalid_state_for_label(label_text), f"Invalid state visible for field: {label_text}")
+        self.log_action(f"Invalid state is shown for field: {label_text}")
+
+    def log_add_popup_required_validation_state(self, labels):
+        for label in labels:
+            has_required_error = self.has_required_error_for_label(label)
+            has_invalid_state = self.has_invalid_state_for_label(label)
+            state = "shown" if has_required_error or has_invalid_state else "not shown"
+            self.log_action(
+                f"Validation for {label}: {state} "
+                f"(required message={has_required_error}, invalid state={has_invalid_state})"
+            )
+        return self
 
     def is_add_popup_open(self) -> bool:
         return (
@@ -357,8 +397,18 @@ class ExtensionsPage:
             if header.is_displayed() and header.text.strip()
         ]
 
+    @staticmethod
+    def normalized_header_key(header_text):
+        return " ".join(str(header_text or "").strip().split()).lower()
+
+    def normalized_table_header(self, header_text):
+        return self.TABLE_HEADER_ALIASES.get(self.normalized_header_key(header_text))
+
     def wait_for_visible_table_column_count(self, expected_count):
-        self.wait.until(lambda _: self.visible_table_column_count() == expected_count)
+        self.wait.until(
+            lambda _: self.visible_table_column_count() == expected_count,
+            f"Visible table column count becomes {expected_count}",
+        )
         return self
 
     def open_column_visibility_dropdown(self):
@@ -524,29 +574,98 @@ class ExtensionsPage:
         return self.wait.until(lambda _: self.visible_row_for_extension(extension_number) or False)
 
     def visible_table_records(self):
-        headers = [header for header in self.visible_table_headers() if header in self.TABLE_DATA_HEADERS]
+        raw_headers = self.visible_table_headers()
+        normalized_headers = [self.normalized_table_header(header) for header in raw_headers]
         records = []
 
         for row in self.visible_table_rows():
-            cells = []
-            for cell in row.find_elements(By.XPATH, "./td"):
-                if not cell.is_displayed():
+            cells = [cell for cell in row.find_elements(By.XPATH, "./td") if cell.is_displayed()]
+            if not cells or cells[0].text.strip() == "No data to display!":
+                continue
+
+            record = {}
+            for index, cell in enumerate(cells):
+                if index >= len(normalized_headers):
+                    continue
+
+                header = normalized_headers[index]
+                if not header:
                     continue
                 if cell.find_elements(By.XPATH, ".//button"):
                     continue
-                cells.append(cell.text.strip())
 
-            if not cells or cells[0] == "No data to display!":
-                continue
+                value = cell.text.strip()
+                existing_value = record.get(header)
+                if existing_value and not value:
+                    continue
+                record[header] = value
 
-            data_headers = headers or self.TABLE_DATA_HEADERS
-            if len(cells) >= len(data_headers):
-                records.append(dict(zip(data_headers, cells[: len(data_headers)])))
-            else:
-                records.append(dict(zip(data_headers[: len(cells)], cells)))
+            if record:
+                records.append(record)
 
         return records
 
+    @staticmethod
+    def _is_sensitive_table_header(header):
+        return ExtensionsPage.normalized_header_key(header) in {"password"}
+
+    def sanitized_visible_table_text(self):
+        headers = self.visible_table_headers()
+        rows = []
+        for row in self.visible_table_rows():
+            values = []
+            cells = row.find_elements(By.XPATH, "./td")
+            for index, cell in enumerate(cells):
+                if cell.find_elements(By.XPATH, ".//button"):
+                    continue
+                text = cell.text.strip()
+                if not text:
+                    continue
+                header = headers[index] if index < len(headers) else ""
+                if self._is_sensitive_table_header(header):
+                    text = "<hidden>"
+                values.append(text)
+            if values:
+                rows.append(" | ".join(values))
+
+        if rows:
+            return " || ".join(rows)
+
+        return " | ".join(
+            cell.text.strip()
+            for cell in self.driver.find_elements(*self.EMPTY_TABLE_MESSAGE)
+            if cell.is_displayed() and cell.text.strip()
+        )
+    def table_debug_snapshot(self):
+        def safe_value(label, getter):
+            try:
+                value = getter()
+                if isinstance(value, str):
+                    return value.strip() or "<empty>"
+                return value
+            except Exception as error:
+                return f"<{label} failed: {error.__class__.__name__}>"
+
+        raw_headers = safe_value("headers", self.visible_table_headers)
+        mapped_headers = [self.normalized_table_header(header) or f"unmapped:{header}" for header in raw_headers]
+        visible_rows = safe_value("visible rows", lambda: len(self.visible_table_rows()))
+        body_rows = safe_value("body rows", lambda: len(self.driver.find_elements(By.XPATH, self.PAGE_ROOT + "//table//tbody/tr")))
+        empty_message = safe_value("visible table rows", self.sanitized_visible_table_text)
+        search_value = safe_value("search value", lambda: self.driver.find_element(*self.SEARCH_INPUT).get_attribute("value"))
+
+        return {
+            "url": self.driver.current_url,
+            "headers": raw_headers,
+            "mapped_headers": mapped_headers,
+            "visible_rows": visible_rows,
+            "body_rows": body_rows,
+            "empty_message": empty_message,
+            "search": search_value,
+        }
+
+    def format_table_debug_snapshot(self):
+        snapshot = self.table_debug_snapshot()
+        return "; ".join(f"{key}={value!r}" for key, value in snapshot.items())
     def first_visible_table_record(self):
         records = self.visible_table_records()
         if not records:
@@ -582,7 +701,10 @@ class ExtensionsPage:
         edit_button = row.find_element(*self.ROW_EDIT_BUTTON)
         self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", edit_button)
         self.click_element(edit_button)
-        self.wait.until(lambda _: self.is_add_popup_open() or self.is_delete_confirmation_open())
+        self.wait.until(
+            lambda _: self.is_add_popup_open() or self.is_delete_confirmation_open(),
+            "Edit popup opened or associated-mobile warning appeared",
+        )
         if self.is_delete_confirmation_open():
             self.log_action("Accept associated-mobile warning before Edit")
             self.accept_visible_confirmation()
@@ -875,8 +997,13 @@ class ExtensionsPage:
             + option_literal
             + "]",
         )
-        self.click_element(self.wait.until(ec.element_to_be_clickable(option_locator)))
-        self.wait.until(ec.invisibility_of_element_located(self.DROPDOWN_PANEL))
+        self.click_element(
+            self.wait.until(
+                ec.element_to_be_clickable(option_locator),
+                f"Dropdown option {option_text!r} is clickable",
+            )
+        )
+        self.wait.until(ec.invisibility_of_element_located(self.DROPDOWN_PANEL), "Dropdown panel closed")
         return self
 
     def choose_different_extension_type(self):
@@ -1018,13 +1145,17 @@ class ExtensionsPage:
     
     def open_add_popup(self):
         if self.is_add_popup_open():
+            self.log_action("Add popup is already open")
             return self
 
         self.log_action("Click Add")
-        self.wait.until(ec.element_to_be_clickable(self.ADD_BUTTON)).click()
-        self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
-        self.wait.until(lambda _: self.is_add_popup_open())
-        self.wait.until(lambda _: self.has_add_popup_controls())
+        self.wait.until(ec.element_to_be_clickable(self.ADD_BUTTON), "Add button is clickable").click()
+        self.log_action("Wait for Add popup dialog")
+        self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP), "Add popup dialog is visible")
+        self.log_action("Verify Add popup is open")
+        self.wait.until(lambda _: self.is_add_popup_open(), "Add popup is open")
+        self.log_action("Verify Add popup controls are visible")
+        self.wait.until(lambda _: self.has_add_popup_controls(), "Add popup controls are visible")
         self.log_action("Add popup opened")
         return self
 
@@ -1033,12 +1164,16 @@ class ExtensionsPage:
         # some environments; a route-preserving reload restores the action.
         self.reload_extensions_table()
         self.log_action("Click bottom Delete")
-        self.click_element(self.wait.until(ec.element_to_be_clickable(self.DELETE_BUTTON)))
-        self.wait.until(lambda _: self.is_add_popup_open() or self.is_delete_confirmation_open())
+        self.click_element(self.wait.until(ec.element_to_be_clickable(self.DELETE_BUTTON), "Bottom Delete button is clickable"))
+        self.wait.until(
+            lambda _: self.is_add_popup_open() or self.is_delete_confirmation_open(),
+            "Edit popup opened or associated-mobile warning appeared",
+        )
         if self.is_delete_confirmation_open():
             self.confirm_delete_confirmation()
-        self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP))
-        self.wait.until(lambda _: self.is_add_popup_open())
+        self.log_action("Wait for bottom delete range popup")
+        self.wait.until(ec.visibility_of_element_located(self.ADD_POPUP), "Bottom delete range popup is visible")
+        self.wait.until(lambda _: self.is_add_popup_open(), "Bottom delete range popup is open")
         self.log_action("Bottom delete range popup opened")
         return self
 
@@ -1089,33 +1224,41 @@ class ExtensionsPage:
     def close_open_dropdown_panel(self):
         ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
         try:
-            self.wait.until(ec.invisibility_of_element_located(self.DROPDOWN_PANEL))
+            self.wait.until(ec.invisibility_of_element_located(self.DROPDOWN_PANEL), "Dropdown panel closed")
         except TimeoutException:
             ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
         return self
 
     def focus_and_blur_add_popup_field(self, locator, label_text, clear=False):
-        element = self.wait.until(ec.element_to_be_clickable(locator))
+        self.log_action(f"Focus field: {label_text}")
+        element = self.wait.until(ec.element_to_be_clickable(locator), f"{label_text} field is clickable")
         element.click()
         if clear:
+            self.log_action(f"Clear field: {label_text}")
             element.send_keys(Keys.CONTROL, "a")
             element.send_keys(Keys.BACKSPACE)
+        self.log_action(f"Leave field to trigger validation: {label_text}")
         element.send_keys(Keys.TAB)
         return self
 
     def focus_and_blur_first_available_add_popup_field(self, locators, label_text):
-        element = self.first_available_clickable(locators)
+        self.log_action(f"Open/focus dropdown field: {label_text}")
+        element = self.first_available_clickable(locators, description=f"{label_text} dropdown is clickable")
         if element is None:
+            self.log_action(f"Skip field because it was not clickable: {label_text}")
             return self
 
         self.click_element(element)
+        self.log_action(f"Leave dropdown to trigger validation: {label_text}")
         ActionChains(self.driver).send_keys(Keys.TAB).perform()
         return self
 
     def touch_add_popup_required_fields(self):
+        self.log_action("Start Add popup required-fields validation check")
         self.focus_and_blur_add_popup_field(self.ADD_POPUP_PASSWORD, "Password", clear=True)
         self.focus_and_blur_first_available_add_popup_field(self.ADD_POPUP_TYPE, "Type")
         self.focus_and_blur_first_available_add_popup_field(self.ADD_POPUP_TRANSPORT_TYPE, "Transport type")
+        self.log_action("Required fields were touched and left empty")
         return self
 
     def click_first_available(self, locators):
@@ -1127,11 +1270,17 @@ class ExtensionsPage:
         self.click_element(element)
         return element
 
-    def first_available_clickable(self, locators):
-        for locator in locators:
+    def first_available_clickable(self, locators, description="matching control is clickable"):
+        quick_wait = WebDriverWait(self.driver, 2, poll_frequency=0.2)
+        total = len(locators)
+        for index, locator in enumerate(locators, start=1):
+            self.log_action(f"Try {description} locator {index}/{total}")
             try:
-                return self.wait.until(ec.element_to_be_clickable(locator))
+                element = quick_wait.until(ec.element_to_be_clickable(locator))
+                self.log_action(f"Found {description} using locator {index}/{total}")
+                return element
             except TimeoutException:
+                self.log_action(f"Locator {index}/{total} not clickable for: {description}")
                 continue
 
         return None
@@ -1180,7 +1329,8 @@ class ExtensionsPage:
     
     def submit_add_popup(self, wait_until_closed=False):
         self.log_action("Click popup Submit")
-        submit_button = self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_SUBMIT))
+        self.wait_for_add_popup_submit_enabled()
+        submit_button = self.wait.until(ec.element_to_be_clickable(self.ADD_POPUP_SUBMIT), "Popup Submit button is clickable")
         self.click_element(submit_button)
 
         if wait_until_closed:
@@ -1270,3 +1420,4 @@ class ExtensionsPage:
             return f'"{value}"'
         parts = value.split("'")
         return "concat(" + ', "\'", '.join(f"'{part}'" for part in parts) + ")"
+

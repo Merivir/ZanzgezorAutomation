@@ -32,5 +32,22 @@ def get_existing_extensions(connection, extension_numbers):
     finally:
         cursor.close()
 
+def delete_extensions(connection, extension_numbers):
+    numbers = [str(number) for number in extension_numbers]
+    if not numbers:
+        return 0
 
-
+    placeholders = ", ".join(["%s"] * len(numbers))
+    cursor = connection.cursor()
+    try:
+        cursor.execute(
+            f"DELETE FROM extensions WHERE extension IN ({placeholders})",
+            tuple(numbers),
+        )
+        connection.commit()
+        return cursor.rowcount
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        cursor.close()

@@ -1,5 +1,7 @@
 import time
 
+from tests.helpers.test_steps import test_step
+
 
 def search_extension_and_get_rows(extensions_page, extension_number):
     extensions_page.search_for_extension_number(extension_number)
@@ -29,7 +31,10 @@ def export_extensions_and_read_rows(extensions_page, download_dir, read_csv_rows
 def collect_table_records_from_all_pages(extensions_page):
     records = extensions_page.all_visible_table_records()
     extensions_page.wait_for_ui_idle()
-    assert records, "Expected visible table records from at least one page before export."
+    if not records:
+        debug_snapshot = extensions_page.format_table_debug_snapshot()
+        extensions_page.log_action(f"No table records collected. Table state: {debug_snapshot}")
+        assert records, f"Expected visible table records before export. Table state: {debug_snapshot}"
     return records
 
 
@@ -79,15 +84,24 @@ def open_add_popup_and_assert_controls(extensions_page):
 
 
 def trigger_add_required_validation(extensions_page):
+    extensions_page.log_action("Testing Add popup required-fields validation")
     extensions_page.open_add_popup()
     extensions_page.touch_add_popup_required_fields()
     extensions_page.wait_for_ui_idle()
+    extensions_page.log_action("Finished touching required fields")
 
 
 def assert_add_required_validation(extensions_page):
+    required_labels = ["Password", "Type", "Transport"]
+    extensions_page.log_action("Verify Submit is disabled while required fields are empty")
     assert extensions_page.is_add_popup_submit_disabled(), "Submit should be disabled when required Add fields are empty."
+
     extensions_page.wait_for_ui_idle()
+    extensions_page.log_action("Verify empty required fields did not receive values")
     assert extensions_page.add_popup_number_fields_are_empty(), "Start and End should stay empty while required validation is shown."
+
+    extensions_page.log_action("Check whether validation messages or invalid states are visible")
+    extensions_page.log_add_popup_required_validation_state(required_labels)
 
 
 def open_add_popup_with_password_visible(extensions_page):
@@ -454,8 +468,12 @@ def delete_extension_and_publish(extensions_page, extension_number):
     extensions_page.publish_changes()
 
 
-def call_number_from_softphone(softphone_page, extension_number, call_number):
+def call_number_from_softphone(softphone_page, extension_number, call_number, microsip=None):
+    incoming_call_marker = microsip.log_marker() if microsip else None
     softphone_page.switch_to_call_tab().select_online_extension(extension_number).call_number(call_number)
+    if microsip:
+        microsip.wait_for_incoming_call(incoming_call_marker).decline_incoming_call()
+
 
 def assert_search_field_is_empty(extensions_page):
     search_value = extensions_page.driver.find_element(*extensions_page.SEARCH_INPUT).get_attribute("value")
@@ -470,3 +488,50 @@ def assert_search_has_no_results(extensions_page, extension_number, expected_con
             "No data to display!",
         )
     )
+_STEP_WRAPPED_WORKFLOWS = [
+    "search_extension_and_get_rows",
+    "clear_search_and_get_rows",
+    "clear_filters_and_get_rows",
+    "export_extensions_and_read_rows",
+    "collect_table_records_from_all_pages",
+    "open_edit_popup_for_first_extension",
+    "assert_edit_popup_matches_row",
+    "open_add_popup_and_assert_controls",
+    "trigger_add_required_validation",
+    "assert_add_required_validation",
+    "open_add_popup_with_password_visible",
+    "enable_generated_password_in_add_popup",
+    "open_mobile_popup_for_first_extension",
+    "assert_mobile_popup_controls",
+    "navigate_to_next_page_and_back",
+    "assert_next_page_changes_records",
+    "return_to_previous_page",
+    "publish_changes_and_assert_page_loaded",
+    "assert_extension_is_visible",
+    "assert_extension_record_is_visible",
+    "generate_new_password_in_edit_popup",
+    "assert_generated_password_was_saved",
+    "edit_extension_and_save_changes",
+    "assert_saved_extension_changes_are_visible",
+    "change_extension_values_and_cancel",
+    "assert_cancelled_extension_changes_were_not_saved",
+    "cancel_row_delete_and_assert_record_remains",
+    "delete_row_and_assert_record_is_removed",
+    "open_bottom_delete_popup_and_assert_fields",
+    "assert_extension_range_is_visible",
+    "cancel_bottom_delete_and_assert_range_remains",
+    "delete_bottom_range_and_assert_removed",
+    "assert_created_extension_is_visible",
+    "assert_created_extension_range_exists",
+    "create_unpublished_extension",
+    "configure_microsip_account",
+    "assert_microsip_call_is_declined",
+    "assert_microsip_call_succeeds",
+    "delete_extension_and_publish",
+    "call_number_from_softphone",
+    "assert_search_field_is_empty",
+    "assert_search_has_no_results",
+]
+
+for _workflow_name in _STEP_WRAPPED_WORKFLOWS:
+    globals()[_workflow_name] = test_step()(globals()[_workflow_name])

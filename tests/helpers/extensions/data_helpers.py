@@ -1,7 +1,7 @@
 import pytest
 
 from tests.db.connection import get_db_connection
-from tests.db.extension_queries import get_existing_extensions, get_extension_numbers
+from tests.db.extension_queries import delete_extensions, get_existing_extensions, get_extension_numbers
 
 
 def get_extension_numbers_from_database():
@@ -18,6 +18,50 @@ def extensions_remaining_in_database(extension_numbers):
         return get_existing_extensions(connection, extension_numbers)
     finally:
         connection.close()
+
+
+def delete_extensions_from_database(extension_numbers):
+    numbers = [str(number) for number in extension_numbers]
+    if not numbers:
+        return 0
+
+    connection = get_db_connection()
+    try:
+        return delete_extensions(connection, numbers)
+    finally:
+        connection.close()
+
+
+def cleanup_extensions_with_db_fallback(extensions_page, extension_numbers, ui_cleanup):
+    numbers = [str(number) for number in extension_numbers]
+    if not numbers:
+        return
+
+    ui_cleanup_succeeded = False
+    try:
+        extensions_page.log_action(f"Cleanup: delete extension(s) from UI: {', '.join(numbers)}")
+        ui_cleanup()
+        ui_cleanup_succeeded = True
+    except Exception as error:
+        extensions_page.log_action(f"UI cleanup failed, will try DB fallback: {error}")
+
+    if ui_cleanup_succeeded:
+        try:
+            extensions_page.log_action("Cleanup: publish deletion changes")
+            extensions_page.publish_changes()
+            extensions_page.wait_for_ui_idle()
+        except Exception as error:
+            extensions_page.log_action(f"Publish after UI cleanup failed, will check DB fallback: {error}")
+
+    remaining = extensions_remaining_in_database(numbers)
+    if not remaining:
+        extensions_page.log_action(f"Cleanup: extension(s) removed: {', '.join(numbers)}")
+        return
+
+    deleted_count = delete_extensions_from_database(remaining)
+    extensions_page.log_action(
+        f"DB fallback cleanup removed {deleted_count} extension(s): {', '.join(remaining)}"
+    )
 
 
 def get_existing_extension_number():
@@ -58,12 +102,16 @@ def add_extension_from_ui(extensions_page, extension_number, end_extension_numbe
 
 
 def add_extension_range_from_ui(extensions_page, start_extension, end_extension, password="Test1234"):
-    add_extension_from_ui(extensions_page, start_extension, end_extension, password=password)
-    extension_numbers = range(int(start_extension), int(end_extension) + 1)
+    extension_numbers = list(range(int(start_extension), int(end_extension) + 1))
     try:
+        add_extension_from_ui(extensions_page, start_extension, end_extension, password=password)
         extensions_page.assert_extensions_exist(extension_numbers)
-    except AssertionError:
-        bottom_delete_extension_range_from_ui(extensions_page, start_extension, end_extension)
+    except Exception:
+        cleanup_extensions_with_db_fallback(
+            extensions_page,
+            extension_numbers,
+            lambda: bottom_delete_extension_range_from_ui(extensions_page, start_extension, end_extension),
+        )
         raise
 
     return str(start_extension), str(end_extension)

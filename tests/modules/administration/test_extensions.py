@@ -30,6 +30,7 @@ from tests.helpers.extensions.data_helpers import (
     add_extension_from_ui,
     add_extension_range_from_ui,
     bottom_delete_extension_range_from_ui,
+    cleanup_extensions_with_db_fallback,
     extensions_remaining_in_database,
     get_extension_numbers_from_database,
     get_non_existing_extension_number,
@@ -126,19 +127,20 @@ def next_extension_number(database_extension_numbers):
 
 @pytest.fixture
 def microsip():
-    microsip_dir = os.getenv("MICROSIP_DIR")
     server = os.getenv("MICROSIP_SERVER", "10.100.121.30")
     account_label = os.getenv("MICROSIP_ACCOUNT_LABEL", "Kube-dev")
     call_number = os.getenv("MICROSIP_CALL_NUMBER", "099452011")
     check_command = os.getenv("MICROSIP_CHECK_COMMAND")
 
     return MicroSIPHelper(
-        microsip_dir=microsip_dir or DEFAULT_MICROSIP_DIR,
+        microsip_dir=DEFAULT_MICROSIP_DIR,
         server=server,
         account_label=account_label,
         call_number=call_number,
         check_command=check_command,
     )
+
+
 
 
 @pytest.fixture
@@ -148,13 +150,18 @@ def disposable_extension(opened_extensions_page):
         add_extension_from_ui(opened_extensions_page, extension_number)
         yield extension_number
     finally:
-        row_delete_extension_from_ui(opened_extensions_page, extension_number)
+        cleanup_extensions_with_db_fallback(
+            opened_extensions_page,
+            [extension_number],
+            lambda: row_delete_extension_from_ui(opened_extensions_page, extension_number),
+        )
 
 
 @pytest.fixture
 def disposable_extension_range(opened_extensions_page):
     start_extension = get_non_existing_extension_number() + 1
     end_extension = start_extension + 2
+    extension_numbers = list(range(start_extension, end_extension + 1))
     try:
         extension_range = add_extension_range_from_ui(
             opened_extensions_page,
@@ -163,7 +170,11 @@ def disposable_extension_range(opened_extensions_page):
         )
         yield extension_range
     finally:
-        bottom_delete_extension_range_from_ui(opened_extensions_page, start_extension, end_extension)
+        cleanup_extensions_with_db_fallback(
+            opened_extensions_page,
+            extension_numbers,
+            lambda: bottom_delete_extension_range_from_ui(opened_extensions_page, start_extension, end_extension),
+        )
 
 
 def skip_not_automated_yet():
@@ -533,12 +544,13 @@ def test_published_single_extension_can_make_call_from_ui(opened_extensions_page
     create_unpublished_extension(opened_extensions_page, extension_number, password)
 
     try:
-        configure_microsip_account(microsip, extension_number, password)
         publish_changes_and_assert_page_loaded(opened_extensions_page)
+        configure_microsip_account(microsip, extension_number, password)
         call_number_from_softphone(
             SoftphonePage(opened_extensions_page.driver),
             extension_number,
             microsip.call_number,
+            microsip=microsip,
         )
     finally:
         if administration_tab in opened_extensions_page.driver.window_handles:
