@@ -1369,8 +1369,10 @@ class ExtensionsPage:
         )
 
     def delete_extension_if_exists(self, extension_number):
-        self.clear_search_and_submit().sort_extensions_descending()
+        self.search_for_extension_number(extension_number)
+        self.wait_for_ui_idle()
         if self.visible_row_for_extension(extension_number) is None:
+            self.log_action(f"Extension {extension_number} is not present; no UI deletion needed")
             return self
 
         return (

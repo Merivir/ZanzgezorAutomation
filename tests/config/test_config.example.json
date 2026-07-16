@@ -8,7 +8,14 @@
             },
     "clients":  {
                     "kube1":  {
-                                  "base_url":  "https://kube1.teamsolutions.am",
+                                  "base_url": "https://kube1.teamsolutions.am",
+                                  "extensions": {
+                                    "cloud_related": false,
+                                    "publish_required": false,
+                                    "sip_check_enabled": true,
+                                    "extension_format": "{extension}",
+                                    "cloud_prefix": ""
+                                  },
                                   "users":  {
                                                 "default":  {
                                                                 "username":  "",
@@ -58,7 +65,14 @@
                                                }
                               },
                     "newhzor":  {
-                                    "base_url":  "https://new-hzor.teamsolutions.am/",
+                                    "base_url": "https://new-hzor.teamsolutions.am/",
+                                    "extensions": {
+                                      "cloud_related": true,
+                                      "publish_required": true,
+                                      "sip_check_enabled": true,
+                                      "extension_format": "{cloud_prefix}{extension}",
+                                      "cloud_prefix": "1000"
+                                    },
                                     "users":  {
                                                   "default":  {
                                                                   "username":  "",

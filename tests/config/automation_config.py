@@ -108,6 +108,27 @@ def get_client_config(config, client_name):
     return client_config
 
 
+def get_extensions_config(config):
+    active_client = get_active_client(config)
+    client_config = get_client_config(config, active_client)
+    extensions_config = client_config.get("extensions", {})
+    return {
+        "cloud_related": bool(extensions_config.get("cloud_related", False)),
+        "publish_required": bool(extensions_config.get("publish_required", False)),
+        "sip_check_enabled": bool(extensions_config.get("sip_check_enabled", True)),
+        "extension_format": extensions_config.get("extension_format", "{extension}"),
+        "cloud_prefix": str(extensions_config.get("cloud_prefix", "")),
+    }
+
+
+def format_dialable_extension(config, admin_extension):
+    extensions_config = get_extensions_config(config)
+    return extensions_config["extension_format"].format(
+        cloud_prefix=extensions_config["cloud_prefix"],
+        extension=str(admin_extension),
+    )
+
+
 def get_modules_config(config):  
     active_client = get_active_client(config)
     client_config = get_client_config(config, active_client)

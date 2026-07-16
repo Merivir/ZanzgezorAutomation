@@ -14,8 +14,9 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from tests.config.automation_config import get_active_client, get_client_config, load_config
+from tests.config.automation_config import get_active_client, get_client_config, get_extensions_config, load_config
 from tests.helpers.log_colors import cyan_text, green_text, red_text, yellow_text
+from tests.helpers.softphones.factory import create_softphone_client
 
 
 LOG_FILE = Path(__file__).parent / "logs" / "test_run.log"
@@ -444,12 +445,21 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--all-modules"):
-        return
-
     automation_config = load_config()
     active_client = get_active_client(automation_config)
     client_config = get_client_config(automation_config, active_client)
+    extensions_config = get_extensions_config(automation_config)
+
+    if not extensions_config["cloud_related"]:
+        skip_non_cloud = pytest.mark.skip(
+            reason=f"Cloud-related test does not apply to non-cloud client '{active_client}'."
+        )
+        for item in items:
+            if item.get_closest_marker("cloud_related"):
+                item.add_marker(skip_non_cloud)
+
+    if config.getoption("--all-modules"):
+        return
     modules = client_config.get("modules", {})
     administration = modules.get("administration", {})
     administration_enabled = administration.get("enabled", False)
@@ -458,6 +468,10 @@ def pytest_collection_modifyitems(config, items):
     selected = []
     deselected = []
     for item in items:
+        if extensions_config["cloud_related"] and item.get_closest_marker("cloud_related"):
+            selected.append(item)
+            continue
+
         section = next((name for name in SECTION_MARKERS if item.get_closest_marker(name)), None)
         item_path = Path(str(item.fspath))
         if section is None and item_path.parent.name == "administration" and item_path.stem.startswith("test_"):
@@ -487,6 +501,14 @@ def pytest_runtest_setup(item):
     _write_log(f"RUNNING: {item.nodeid}")
     _write_log(f"TestLink: {testlink_id}")
     _write_log(f"Title: {title}")
+
+    if item.get_closest_marker("requires_microsip"):
+        run_config = load_config().get("run", {})
+        provider = os.getenv("SOFTPHONE_PROVIDER") or run_config.get("softphone_provider")
+        softphone_client = create_softphone_client(provider)
+        missing_setup_reason = softphone_client.missing_setup_reason()
+        if missing_setup_reason:
+            pytest.skip(missing_setup_reason)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -686,6 +708,21 @@ def wait(driver):
 
 
 @pytest.fixture
+def softphone_client():
+    run_config = load_config().get("run", {})
+    provider = os.getenv("SOFTPHONE_PROVIDER") or run_config.get("softphone_provider")
+    client = create_softphone_client(provider)
+    try:
+        yield client
+    finally:
+        client.stop()
+
+
+@pytest.fixture
+def microsip(softphone_client):
+    return softphone_client
+
+
 def download_dir():
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     for path in DOWNLOAD_DIR.glob("*"):

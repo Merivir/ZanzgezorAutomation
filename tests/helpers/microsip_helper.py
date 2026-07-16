@@ -4,12 +4,16 @@ import subprocess
 import time
 from pathlib import Path
 
+from tests.helpers.softphones.base import SoftphoneClient
+
 
 DEFAULT_MICROSIP_DIR = Path(__file__).resolve().parent / "helper_tool" / "MicroSIP"
 DEFAULT_CALL_NUMBER = "099452011"
 
 
-class MicroSIPHelper:
+class MicroSIPHelper(SoftphoneClient):
+    provider_name = "MicroSIP"
+
     def __init__(
         self,
         microsip_dir=DEFAULT_MICROSIP_DIR,

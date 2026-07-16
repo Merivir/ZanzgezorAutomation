@@ -1,5 +1,6 @@
 import time
 
+from tests.helpers.extensions.data_helpers import extensions_remaining_in_database
 from tests.helpers.test_steps import test_step
 
 
@@ -447,12 +448,19 @@ def assert_created_extension_range_exists(start_extension, end_extension):
     assert start_extension and end_extension, "Expected disposable extension range to be created."
 
 
+
 def create_unpublished_extension(extensions_page, extension_number, password):
     extensions_page.create_extension(extension_number=extension_number, password=password)
 
 
 def configure_microsip_account(microsip, extension_number, password):
     microsip.configure_account(extension=extension_number, password=password).restart()
+
+
+def check_microsip_call_succeeds(microsip, extension_number, password):
+    succeeded = microsip.call_succeeds(extension=extension_number, password=password)
+    microsip.log_action(f"Outgoing call result: {'SUCCEEDED' if succeeded else 'DECLINED'}")
+    return succeeded
 
 
 def assert_microsip_call_is_declined(microsip, extension_number, password, message):
@@ -466,6 +474,9 @@ def assert_microsip_call_succeeds(microsip, extension_number, password, message)
 def delete_extension_and_publish(extensions_page, extension_number):
     extensions_page.delete_extension_if_exists(extension_number)
     extensions_page.publish_changes()
+    extensions_page.wait_for_ui_idle()
+    remaining = extensions_remaining_in_database([extension_number])
+    assert not remaining, f"Extension remained in the database after UI delete and Publish: {remaining}"
 
 
 def call_number_from_softphone(softphone_page, extension_number, call_number, microsip=None):
@@ -525,6 +536,7 @@ _STEP_WRAPPED_WORKFLOWS = [
     "assert_created_extension_range_exists",
     "create_unpublished_extension",
     "configure_microsip_account",
+    "check_microsip_call_succeeds",
     "assert_microsip_call_is_declined",
     "assert_microsip_call_succeeds",
     "delete_extension_and_publish",

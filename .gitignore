@@ -26,3 +26,6 @@ tests/helpers/helper_tool/MicroSIP/*.ini.bak
 tests/downloads/*
 tests/helpers/helper_tool/MicroSIP/*.db
 tests/helpers/helper_tool/MicroSIP/Contacts.xml
+tools/pjsip/
+tools/sipp/
+tests/helpers/helper_tool/MicroSIP/MicroSIP_log.txt

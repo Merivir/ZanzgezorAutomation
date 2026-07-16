@@ -1,12 +1,12 @@
-import os
-
 import pytest
 from selenium.webdriver.support import expected_conditions as ec
 
 from tests.config.automation_config import (
     load_config,
     get_active_client,
+    format_dialable_extension,
     get_client_config,
+    get_extensions_config,
     get_user_credentials,
 )
 from tests.config.testcase import testcase
@@ -14,7 +14,6 @@ from tests.pages.login_page import LoginPage
 from tests.pages.administration_page import AdministrationPage
 from tests.pages.extensions_page import ExtensionsPage
 from tests.pages.softphone_page import SoftphonePage
-from tests.helpers.microsip_helper import DEFAULT_MICROSIP_DIR, MicroSIPHelper
 from tests.helpers.extensions.assertions import (
     assert_export_contains_extension,
     assert_export_contains_table_records,
@@ -56,6 +55,7 @@ from tests.helpers.extensions.workflows import (
     cancel_row_delete_and_assert_record_remains,
     change_extension_values_and_cancel,
     clear_filters_and_get_rows,
+    check_microsip_call_succeeds,
     clear_search_and_get_rows,
     close_add_popup_if_open,
     close_mobile_popup_if_open,
@@ -125,22 +125,9 @@ def next_extension_number(database_extension_numbers):
     return str(database_extension_numbers[-1] + 1)
 
 
-@pytest.fixture
-def microsip():
-    server = os.getenv("MICROSIP_SERVER", "10.100.121.30")
-    account_label = os.getenv("MICROSIP_ACCOUNT_LABEL", "Kube-dev")
-    call_number = os.getenv("MICROSIP_CALL_NUMBER", "099452011")
-    check_command = os.getenv("MICROSIP_CHECK_COMMAND")
-
-    return MicroSIPHelper(
-        microsip_dir=DEFAULT_MICROSIP_DIR,
-        server=server,
-        account_label=account_label,
-        call_number=call_number,
-        check_command=check_command,
-    )
-
-
+@pytest.fixture(scope="module")
+def extensions_environment():
+    return get_extensions_config(load_config())
 
 
 @pytest.fixture
@@ -478,6 +465,7 @@ def test_page_navigation_and_items_per_page_work_correctly(opened_extensions_pag
 @pytest.mark.extensions
 @pytest.mark.destructive
 @pytest.mark.publish
+@pytest.mark.cloud_related
 def test_publish_applies_saved_changes_successfully(opened_extensions_page):
     publish_changes_and_assert_page_loaded(opened_extensions_page)
 
@@ -487,52 +475,55 @@ def test_publish_applies_saved_changes_successfully(opened_extensions_page):
 @pytest.mark.integration
 @pytest.mark.destructive
 @pytest.mark.requires_microsip
-def test_extension_becomes_available_only_after_publish(opened_extensions_page, microsip, next_extension_number):
+@pytest.mark.cloud_related
+def test_extension_becomes_available_only_after_publish(opened_extensions_page, microsip, extensions_environment):
+    if not extensions_environment["sip_check_enabled"]:
+        pytest.skip("SIP checks are disabled for the active environment.")
     missing_setup_reason = microsip.missing_setup_reason()
     if missing_setup_reason:
         pytest.skip(missing_setup_reason)
-    if not microsip.check_command:
+    if microsip.provider_name == "MicroSIP" and not microsip.check_command:
         pytest.skip("MICROSIP_CHECK_COMMAND is required to verify whether the call succeeds or declines.")
 
     extension_number = str(get_non_existing_extension_number())
     password = "Test1234"
-
-    create_unpublished_extension(opened_extensions_page, extension_number, password)
+    extension_created = False
+    deletion_published = False
 
     try:
+        create_unpublished_extension(opened_extensions_page, extension_number, password)
+        extension_created = True
+
         configure_microsip_account(microsip, extension_number, password)
-        assert_microsip_call_is_declined(
-            microsip,
-            extension_number,
-            password,
-            "Extension should not call 099452011 before Publish.",
-        )
+        call_before_publish = check_microsip_call_succeeds(microsip, extension_number, password)
 
         publish_changes_and_assert_page_loaded(opened_extensions_page)
-        assert_microsip_call_succeeds(
-            microsip,
-            extension_number,
-            password,
-            "Extension should call 099452011 after Publish.",
-        )
+        call_after_publish = check_microsip_call_succeeds(microsip, extension_number, password)
 
         delete_extension_and_publish(opened_extensions_page, extension_number)
-        assert_microsip_call_is_declined(
-            microsip,
-            extension_number,
-            password,
-            "Deleted extension should not call 099452011 after delete and Publish.",
+        deletion_published = True
+        call_after_delete = check_microsip_call_succeeds(microsip, extension_number, password)
+
+        observed_states = (
+            f"before Publish={call_before_publish}, "
+            f"after Publish={call_after_publish}, "
+            f"after delete and Publish={call_after_delete}"
         )
+        assert not call_before_publish, f"Extension could call before Publish. Observed: {observed_states}"
+        assert call_after_publish, f"Extension could not call after Publish. Observed: {observed_states}"
+        assert not call_after_delete, f"Deleted extension could still call after Publish. Observed: {observed_states}"
     finally:
-        opened_extensions_page.delete_extension_if_exists(extension_number)
+        if extension_created and not deletion_published:
+            delete_extension_and_publish(opened_extensions_page, extension_number)
 
 
 @pytest.mark.administration
-@pytest.mark.publish
 @pytest.mark.integration
 @pytest.mark.destructive
 @pytest.mark.requires_microsip
-def test_published_single_extension_can_make_call_from_ui(opened_extensions_page, microsip, next_extension_number):
+def test_single_extension_can_make_call_from_ui(opened_extensions_page, microsip, extensions_environment):
+    if not extensions_environment["sip_check_enabled"]:
+        pytest.skip("SIP checks are disabled for the active environment.")
     missing_setup_reason = microsip.missing_setup_reason()
     if missing_setup_reason:
         pytest.skip(missing_setup_reason)
@@ -542,13 +533,15 @@ def test_published_single_extension_can_make_call_from_ui(opened_extensions_page
     administration_tab = opened_extensions_page.driver.current_window_handle
 
     create_unpublished_extension(opened_extensions_page, extension_number, password)
+    dialable_extension = format_dialable_extension(load_config(), extension_number)
 
     try:
-        publish_changes_and_assert_page_loaded(opened_extensions_page)
+        if extensions_environment["publish_required"]:
+            publish_changes_and_assert_page_loaded(opened_extensions_page)
         configure_microsip_account(microsip, extension_number, password)
         call_number_from_softphone(
             SoftphonePage(opened_extensions_page.driver),
-            extension_number,
+            dialable_extension,
             microsip.call_number,
             microsip=microsip,
         )
@@ -561,5 +554,12 @@ def test_published_single_extension_can_make_call_from_ui(opened_extensions_page
             administration_page.open_extensions()
             opened_extensions_page.wait_until_loaded()
         opened_extensions_page.delete_extension_if_exists(extension_number)
-        opened_extensions_page.publish_changes()
-        microsip.restore_config_backup().restart()
+        if extensions_environment["publish_required"]:
+            opened_extensions_page.publish_changes()
+        opened_extensions_page.wait_for_ui_idle()
+        assert not extensions_remaining_in_database([extension_number]), (
+            f"Extension remained in database after cleanup: {extension_number}"
+        )
+        microsip.restore_config_backup()
+        if microsip.provider_name == "MicroSIP":
+            microsip.restart()
