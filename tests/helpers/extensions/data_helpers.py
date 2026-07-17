@@ -1,21 +1,77 @@
 import pytest
 
+from tests.config.automation_config import get_extensions_config, load_config
 from tests.db.connection import get_db_connection
-from tests.db.extension_queries import delete_extensions, get_existing_extensions, get_extension_numbers
+from tests.db.extension_queries import (
+    delete_extensions,
+    get_existing_extensions,
+    get_extension_numbers,
+    get_extension_identity,
+    get_last_extension_number,
+)
+
+
+def _extension_scope():
+    extensions_config = get_extensions_config(load_config())
+    company_name = extensions_config.get("company_name")
+    extension_type = extensions_config.get("extension_type")
+    missing = [
+        key
+        for key, value in (("company_name", company_name), ("extension_type", extension_type))
+        if not value
+    ]
+    if missing:
+        raise ValueError(f"Missing extension database scope configuration: {', '.join(missing)}")
+    return company_name, extension_type
 
 
 def get_extension_numbers_from_database():
+    company_name, extension_type = _extension_scope()
     connection = get_db_connection()
     try:
-        return get_extension_numbers(connection)
+        return get_extension_numbers(connection, company_name, extension_type)
     finally:
         connection.close()
 
 
-def extensions_remaining_in_database(extension_numbers):
+def get_extension_identity_from_database(extension_number):
+    company_name, extension_type = _extension_scope()
     connection = get_db_connection()
     try:
-        return get_existing_extensions(connection, extension_numbers)
+        identity = get_extension_identity(
+            connection,
+            extension_number,
+            company_name,
+            extension_type,
+        )
+    finally:
+        connection.close()
+
+    if identity is None:
+        raise AssertionError(
+            f"Extension '{extension_number}' was not found for company '{company_name}' "
+            f"with type '{extension_type}'."
+        )
+
+    extension, real_extension = identity
+    return {
+        "extension": extension,
+        "real_extension": real_extension,
+        "sip_extension": real_extension or extension,
+        "requires_publish": bool(real_extension),
+    }
+
+
+def extensions_remaining_in_database(extension_numbers):
+    company_name, extension_type = _extension_scope()
+    connection = get_db_connection()
+    try:
+        return get_existing_extensions(
+            connection,
+            extension_numbers,
+            company_name,
+            extension_type,
+        )
     finally:
         connection.close()
 
@@ -25,9 +81,15 @@ def delete_extensions_from_database(extension_numbers):
     if not numbers:
         return 0
 
+    company_name, extension_type = _extension_scope()
     connection = get_db_connection()
     try:
-        return delete_extensions(connection, numbers)
+        return delete_extensions(
+            connection,
+            numbers,
+            company_name,
+            extension_type,
+        )
     finally:
         connection.close()
 
@@ -67,26 +129,26 @@ def cleanup_extensions_with_db_fallback(extensions_page, extension_numbers, ui_c
 def get_existing_extension_number():
     extension_numbers = get_extension_numbers_from_database()
     if not extension_numbers:
-        pytest.skip("No extensions found in the database to test with.")
+        pytest.skip("No scoped pjsip extensions found in the database to test with.")
     return extension_numbers[0]
 
 
 def get_non_existing_extension_number():
-    active_extension_numbers = [int(number) for number in get_extension_numbers_from_database()]
-    if not active_extension_numbers:
+    company_name, extension_type = _extension_scope()
+    connection = get_db_connection()
+    try:
+        last_extension = get_last_extension_number(connection, company_name, extension_type)
+    finally:
+        connection.close()
+
+    if last_extension is None:
         return 1000
-    return max(active_extension_numbers) + 1
+    return int(last_extension) + 1
 
 
 def get_non_existing_extension_range(size=2):
-    active_extension_numbers = [int(number) for number in get_extension_numbers_from_database()]
-    if not active_extension_numbers:
-        start = 1000
-        return start, start + size - 1
-
-    start = max(active_extension_numbers) + 1
-    end = start + size - 1
-    return start, end
+    start = get_non_existing_extension_number()
+    return start, start + size - 1
 
 
 def add_extension_from_ui(extensions_page, extension_number, end_extension_number=None, password="Test1234"):

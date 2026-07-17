@@ -19,6 +19,7 @@ build/
 
 test_config.json
 config/test_config.json
+tests/config/test_config.json
 tests/tools/MicroSIP/
 tests/helper_tool/MicroSIP/
 tests/helpers/helper_tool/MicroSIP/*.ini
@@ -27,5 +28,4 @@ tests/downloads/*
 tests/helpers/helper_tool/MicroSIP/*.db
 tests/helpers/helper_tool/MicroSIP/Contacts.xml
 tools/pjsip/
-tools/sipp/
 tests/helpers/helper_tool/MicroSIP/MicroSIP_log.txt

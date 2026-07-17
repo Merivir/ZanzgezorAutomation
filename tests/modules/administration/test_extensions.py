@@ -4,7 +4,6 @@ from selenium.webdriver.support import expected_conditions as ec
 from tests.config.automation_config import (
     load_config,
     get_active_client,
-    format_dialable_extension,
     get_client_config,
     get_extensions_config,
     get_user_credentials,
@@ -33,6 +32,7 @@ from tests.helpers.extensions.data_helpers import (
     extensions_remaining_in_database,
     get_extension_numbers_from_database,
     get_non_existing_extension_number,
+    get_extension_identity_from_database,
     row_delete_extension_from_ui,
 )
 from tests.helpers.extensions.workflows import (
@@ -493,16 +493,21 @@ def test_extension_becomes_available_only_after_publish(opened_extensions_page, 
     try:
         create_unpublished_extension(opened_extensions_page, extension_number, password)
         extension_created = True
+        extension_identity = get_extension_identity_from_database(extension_number)
+        assert extension_identity["requires_publish"], (
+            "Cloud Publish scenario requires a non-empty real_extension."
+        )
+        sip_extension = extension_identity["sip_extension"]
 
-        configure_microsip_account(microsip, extension_number, password)
-        call_before_publish = check_microsip_call_succeeds(microsip, extension_number, password)
+        configure_microsip_account(microsip, sip_extension, password)
+        call_before_publish = check_microsip_call_succeeds(microsip, sip_extension, password)
 
         publish_changes_and_assert_page_loaded(opened_extensions_page)
-        call_after_publish = check_microsip_call_succeeds(microsip, extension_number, password)
+        call_after_publish = check_microsip_call_succeeds(microsip, sip_extension, password)
 
         delete_extension_and_publish(opened_extensions_page, extension_number)
         deletion_published = True
-        call_after_delete = check_microsip_call_succeeds(microsip, extension_number, password)
+        call_after_delete = check_microsip_call_succeeds(microsip, sip_extension, password)
 
         observed_states = (
             f"before Publish={call_before_publish}, "
@@ -531,17 +536,22 @@ def test_single_extension_can_make_call_from_ui(opened_extensions_page, microsip
     extension_number = str(get_non_existing_extension_number())
     password = "Test1234"
     administration_tab = opened_extensions_page.driver.current_window_handle
-
-    create_unpublished_extension(opened_extensions_page, extension_number, password)
-    dialable_extension = format_dialable_extension(load_config(), extension_number)
+    extension_created = False
+    requires_publish = False
 
     try:
-        if extensions_environment["publish_required"]:
+        create_unpublished_extension(opened_extensions_page, extension_number, password)
+        extension_created = True
+        extension_identity = get_extension_identity_from_database(extension_number)
+        sip_extension = extension_identity["sip_extension"]
+        requires_publish = extension_identity["requires_publish"]
+
+        if requires_publish:
             publish_changes_and_assert_page_loaded(opened_extensions_page)
-        configure_microsip_account(microsip, extension_number, password)
+        configure_microsip_account(microsip, sip_extension, password)
         call_number_from_softphone(
             SoftphonePage(opened_extensions_page.driver),
-            dialable_extension,
+            extension_number,
             microsip.call_number,
             microsip=microsip,
         )
@@ -553,13 +563,14 @@ def test_single_extension_can_make_call_from_ui(opened_extensions_page, microsip
             administration_page.open_administration_page()
             administration_page.open_extensions()
             opened_extensions_page.wait_until_loaded()
-        opened_extensions_page.delete_extension_if_exists(extension_number)
-        if extensions_environment["publish_required"]:
-            opened_extensions_page.publish_changes()
-        opened_extensions_page.wait_for_ui_idle()
-        assert not extensions_remaining_in_database([extension_number]), (
-            f"Extension remained in database after cleanup: {extension_number}"
-        )
+        if extension_created:
+            opened_extensions_page.delete_extension_if_exists(extension_number)
+            if requires_publish:
+                opened_extensions_page.publish_changes()
+            opened_extensions_page.wait_for_ui_idle()
+            assert not extensions_remaining_in_database([extension_number]), (
+                f"Extension remained in database after cleanup: {extension_number}"
+            )
         microsip.restore_config_backup()
         if microsip.provider_name == "MicroSIP":
             microsip.restart()

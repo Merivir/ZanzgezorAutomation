@@ -4,17 +4,17 @@
                 "headless":  false,
                 "chromedriver_path":  "",
                 "chrome_binary_path":  "",
-                "selenium_remote_url":  ""
+                "selenium_remote_url":  "",
+                "softphone_provider": "pjsua"
             },
     "clients":  {
                     "kube1":  {
                                   "base_url": "https://kube1.teamsolutions.am",
                                   "extensions": {
                                     "cloud_related": false,
-                                    "publish_required": false,
                                     "sip_check_enabled": true,
-                                    "extension_format": "{extension}",
-                                    "cloud_prefix": ""
+                                    "company_name": "kube1",
+                                    "extension_type": "pjsip"
                                   },
                                   "users":  {
                                                 "default":  {
@@ -68,10 +68,9 @@
                                     "base_url": "https://new-hzor.teamsolutions.am/",
                                     "extensions": {
                                       "cloud_related": true,
-                                      "publish_required": true,
                                       "sip_check_enabled": true,
-                                      "extension_format": "{cloud_prefix}{extension}",
-                                      "cloud_prefix": "1000"
+                                      "company_name": "new-hzor",
+                                      "extension_type": "pjsip"
                                     },
                                     "users":  {
                                                   "default":  {

@@ -48,7 +48,8 @@ def load_config():
             f"Create tests/config/test_config.json or set ${CONFIG_PATH_ENV} to an existing config file."
         )
 
-    with config_path.open(encoding="utf-8") as f:
+    # utf-8-sig accepts regular UTF-8 and transparently removes an editor-added BOM.
+    with config_path.open(encoding="utf-8-sig") as f:
         config = json.load(f)
 
     selected_client = os.getenv(CLIENT_ENV)
@@ -114,19 +115,11 @@ def get_extensions_config(config):
     extensions_config = client_config.get("extensions", {})
     return {
         "cloud_related": bool(extensions_config.get("cloud_related", False)),
-        "publish_required": bool(extensions_config.get("publish_required", False)),
         "sip_check_enabled": bool(extensions_config.get("sip_check_enabled", True)),
-        "extension_format": extensions_config.get("extension_format", "{extension}"),
-        "cloud_prefix": str(extensions_config.get("cloud_prefix", "")),
+        "company_name": str(extensions_config.get("company_name", "")),
+        "extension_type": str(extensions_config.get("extension_type", "pjsip")),
     }
 
-
-def format_dialable_extension(config, admin_extension):
-    extensions_config = get_extensions_config(config)
-    return extensions_config["extension_format"].format(
-        cloud_prefix=extensions_config["cloud_prefix"],
-        extension=str(admin_extension),
-    )
 
 
 def get_modules_config(config):  

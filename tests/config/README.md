@@ -49,7 +49,8 @@ The value must exist under `clients`.
   "headless": false,
   "chromedriver_path": "",
   "chrome_binary_path": "",
-  "selenium_remote_url": ""
+  "selenium_remote_url": "",
+  "softphone_provider": "pjsua"
 }
 ```
 
@@ -57,6 +58,7 @@ The value must exist under `clients`.
 - `chromedriver_path`: optional custom ChromeDriver path
 - `chrome_binary_path`: optional custom Chrome path
 - `selenium_remote_url`: optional Selenium Grid / remote driver URL
+- `softphone_provider`: `pjsua` by default; `microsip` is also supported
 
 ### Users
 
