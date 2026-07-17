@@ -458,6 +458,22 @@ def pytest_collection_modifyitems(config, items):
             if item.get_closest_marker("cloud_related"):
                 item.add_marker(skip_non_cloud)
 
+    if not extensions_config["pjsip_supported"]:
+        skip_without_pjsip = pytest.mark.skip(
+            reason=f"PJSIP extensions are not supported by client '{active_client}'."
+        )
+        for item in items:
+            if item.get_closest_marker("requires_pjsip"):
+                item.add_marker(skip_without_pjsip)
+
+    if not extensions_config["webrtc_supported"]:
+        skip_without_webrtc = pytest.mark.skip(
+            reason=f"WebRTC extensions are not supported by client '{active_client}'."
+        )
+        for item in items:
+            if item.get_closest_marker("requires_webrtc"):
+                item.add_marker(skip_without_webrtc)
+
     if config.getoption("--all-modules"):
         return
     modules = client_config.get("modules", {})

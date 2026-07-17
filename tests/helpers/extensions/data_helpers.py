@@ -11,10 +11,13 @@ from tests.db.extension_queries import (
 )
 
 
-def _extension_scope():
+PJSIP_EXTENSION_TYPE = "pjsip"
+WEBRTC_EXTENSION_TYPE = "webrtc"
+
+
+def _extension_scope(extension_type):
     extensions_config = get_extensions_config(load_config())
     company_name = extensions_config.get("company_name")
-    extension_type = extensions_config.get("extension_type")
     missing = [
         key
         for key, value in (("company_name", company_name), ("extension_type", extension_type))
@@ -25,8 +28,8 @@ def _extension_scope():
     return company_name, extension_type
 
 
-def get_extension_numbers_from_database():
-    company_name, extension_type = _extension_scope()
+def get_extension_numbers_from_database(extension_type=PJSIP_EXTENSION_TYPE):
+    company_name, extension_type = _extension_scope(extension_type)
     connection = get_db_connection()
     try:
         return get_extension_numbers(connection, company_name, extension_type)
@@ -34,8 +37,8 @@ def get_extension_numbers_from_database():
         connection.close()
 
 
-def get_extension_identity_from_database(extension_number):
-    company_name, extension_type = _extension_scope()
+def get_extension_identity_from_database(extension_number, extension_type=PJSIP_EXTENSION_TYPE):
+    company_name, extension_type = _extension_scope(extension_type)
     connection = get_db_connection()
     try:
         identity = get_extension_identity(
@@ -62,8 +65,8 @@ def get_extension_identity_from_database(extension_number):
     }
 
 
-def extensions_remaining_in_database(extension_numbers):
-    company_name, extension_type = _extension_scope()
+def extensions_remaining_in_database(extension_numbers, extension_type=PJSIP_EXTENSION_TYPE):
+    company_name, extension_type = _extension_scope(extension_type)
     connection = get_db_connection()
     try:
         return get_existing_extensions(
@@ -76,12 +79,12 @@ def extensions_remaining_in_database(extension_numbers):
         connection.close()
 
 
-def delete_extensions_from_database(extension_numbers):
+def delete_extensions_from_database(extension_numbers, extension_type=PJSIP_EXTENSION_TYPE):
     numbers = [str(number) for number in extension_numbers]
     if not numbers:
         return 0
 
-    company_name, extension_type = _extension_scope()
+    company_name, extension_type = _extension_scope(extension_type)
     connection = get_db_connection()
     try:
         return delete_extensions(
@@ -94,7 +97,12 @@ def delete_extensions_from_database(extension_numbers):
         connection.close()
 
 
-def cleanup_extensions_with_db_fallback(extensions_page, extension_numbers, ui_cleanup):
+def cleanup_extensions_with_db_fallback(
+    extensions_page,
+    extension_numbers,
+    ui_cleanup,
+    extension_type=PJSIP_EXTENSION_TYPE,
+):
     numbers = [str(number) for number in extension_numbers]
     if not numbers:
         return
@@ -115,26 +123,26 @@ def cleanup_extensions_with_db_fallback(extensions_page, extension_numbers, ui_c
         except Exception as error:
             extensions_page.log_action(f"Publish after UI cleanup failed, will check DB fallback: {error}")
 
-    remaining = extensions_remaining_in_database(numbers)
+    remaining = extensions_remaining_in_database(numbers, extension_type)
     if not remaining:
         extensions_page.log_action(f"Cleanup: extension(s) removed: {', '.join(numbers)}")
         return
 
-    deleted_count = delete_extensions_from_database(remaining)
+    deleted_count = delete_extensions_from_database(remaining, extension_type)
     extensions_page.log_action(
         f"DB fallback cleanup removed {deleted_count} extension(s): {', '.join(remaining)}"
     )
 
 
-def get_existing_extension_number():
-    extension_numbers = get_extension_numbers_from_database()
+def get_existing_extension_number(extension_type=PJSIP_EXTENSION_TYPE):
+    extension_numbers = get_extension_numbers_from_database(extension_type)
     if not extension_numbers:
-        pytest.skip("No scoped pjsip extensions found in the database to test with.")
+        pytest.skip(f"No scoped {extension_type} extensions found in the database to test with.")
     return extension_numbers[0]
 
 
-def get_non_existing_extension_number():
-    company_name, extension_type = _extension_scope()
+def get_non_existing_extension_number(extension_type=PJSIP_EXTENSION_TYPE):
+    company_name, extension_type = _extension_scope(extension_type)
     connection = get_db_connection()
     try:
         last_extension = get_last_extension_number(connection, company_name, extension_type)
@@ -146,8 +154,8 @@ def get_non_existing_extension_number():
     return int(last_extension) + 1
 
 
-def get_non_existing_extension_range(size=2):
-    start = get_non_existing_extension_number()
+def get_non_existing_extension_range(size=2, extension_type=PJSIP_EXTENSION_TYPE):
+    start = get_non_existing_extension_number(extension_type)
     return start, start + size - 1
 
 

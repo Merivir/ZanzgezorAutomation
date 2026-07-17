@@ -60,6 +60,39 @@ The value must exist under `clients`.
 - `selenium_remote_url`: optional Selenium Grid / remote driver URL
 - `softphone_provider`: `pjsua` by default; `microsip` is also supported
 
+### Extension Capabilities
+
+Each client declares extension behavior independently:
+
+```json
+"extensions": {
+  "cloud_related": false,
+  "sip_check_enabled": true,
+  "pjsip_supported": true,
+  "webrtc_supported": false,
+  "company_name": "exact-company-name",
+}
+```
+
+Set `pjsip_supported` to `true` when the existing PJSIP Extensions suite applies. Set `webrtc_supported` to `true` only when that client allows WebRTC extension creation and user attachment. Mark those scenarios with `@pytest.mark.requires_webrtc`; unsupported clients skip them with a clear reason. Extension type is not a client setting: PJSIP workflows pass `pjsip`, and WebRTC workflows pass `webrtc` explicitly.
+
+### Telephony
+
+Each client has its own SIP settings:
+
+```json
+"telephony": {
+  "sip_server": "10.100.121.30",
+  "call_number": "099452011",
+  "local_port": 5062
+}
+```
+
+- `sip_server`: SIP registrar/server used by PJSUA or MicroSIP
+- `call_number`: test destination number used by softphone call checks
+- `local_port`: local UDP port used by PJSUA
+
+Environment variables still override these values for one run: `PJSUA_SERVER`, `MICROSIP_SERVER`, `PJSUA_CALL_NUMBER`, `MICROSIP_CALL_NUMBER`, and `PJSUA_LOCAL_PORT`.
 ### Users
 
 Each client can have multiple users:

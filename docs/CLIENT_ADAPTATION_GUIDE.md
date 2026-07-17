@@ -42,8 +42,9 @@ Add one named client profile. Test code should select the profile through `TEST_
       "extensions": {
         "cloud_related": false,
         "sip_check_enabled": true,
+        "pjsip_supported": true,
+        "webrtc_supported": false,
         "company_name": "exact-company-name",
-        "extension_type": "pjsip"
       },
       "modules": {
         "administration": true,
@@ -60,6 +61,8 @@ Add one named client profile. Test code should select the profile through `TEST_
 ```
 
 Keep safe defaults in the tracked example file. Store local environment values in the ignored local configuration or environment variables.
+
+Do not configure one global extension type. Each workflow supplies its own type explicitly: `pjsip` for PJSIP scenarios and `webrtc` for WebRTC scenarios.
 
 ## 4. Architecture To Preserve
 
@@ -153,9 +156,13 @@ Use markers to describe requirements, not client names:
 @pytest.mark.calls
 @pytest.mark.integration
 @pytest.mark.cloud_related
+@pytest.mark.requires_pjsip
+@pytest.mark.requires_webrtc
 ```
 
 - `cloud_related`: collect or run only when the selected profile enables cloud behavior.
+- `requires_pjsip`: run only when the selected profile has `pjsip_supported: true`.
+- `requires_webrtc`: run only when the selected profile has `webrtc_supported: true`.
 - `integration`: requires browser plus external services such as SIP or database connectivity.
 - module markers such as `calls` or `extensions`: allow focused execution.
 

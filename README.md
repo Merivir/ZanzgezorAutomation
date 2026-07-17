@@ -48,9 +48,13 @@ credentials through `TEST_USERNAME`, `TEST_PASSWORD`, `DB_HOST`, `DB_PORT`,
 - `clients.<client>.users`: login accounts (default/admin/supervisor/agent)
 - `clients.<client>.modules`: enable or disable module checks
 - `clients.<client>.extensions.company_name`: exact company name used to scope extension data
-- `clients.<client>.extensions.extension_type`: extension type, normally `pjsip`
 - `clients.<client>.extensions.cloud_related`: enables cloud-only scenarios
 - `clients.<client>.extensions.sip_check_enabled`: enables SIP integration checks
+- `clients.<client>.extensions.pjsip_supported`: enables existing PJSIP extension scenarios
+- `clients.<client>.extensions.webrtc_supported`: enables WebRTC extension creation and user-attachment scenarios
+- `clients.<client>.telephony.sip_server`: SIP server used by PJSUA/MicroSIP
+- `clients.<client>.telephony.call_number`: destination number used by SIP call checks
+- `clients.<client>.telephony.local_port`: local PJSUA SIP port
 - `run.headless`: `true` or `false`
 - `run.softphone_provider`: softphone adapter; `pjsua` is the default
 - `run.chromedriver_path`: optional absolute path to a local `chromedriver`
@@ -68,6 +72,16 @@ The external SIP client uses `real_extension` when the saved database row has
 one; otherwise it uses `extension`. A non-empty `real_extension` also means
 the Add or Delete change must be published before SIP verification. No SIP
 prefix is calculated in configuration.
+
+Extension type is selected by each workflow: current PJSIP helpers pass `pjsip`, and future WebRTC helpers pass `webrtc`.
+
+### Configured client capabilities
+
+| Client key | Base URL | Company name | PJSIP | WebRTC |
+| --- | --- | --- | --- | --- |
+| `kube1` | `https://kube1.teamsolutions.am` | `kube1` | Yes | No |
+| `newhzor` | `https://new-hzor.teamsolutions.am/` | `new-hzor` | Yes | Yes |
+| `ameria` | `https://ameria.teamsolutions.am/` | `Ameria` | Yes | Yes |
 
 ## Run regression tests
 

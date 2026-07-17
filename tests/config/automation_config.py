@@ -116,11 +116,22 @@ def get_extensions_config(config):
     return {
         "cloud_related": bool(extensions_config.get("cloud_related", False)),
         "sip_check_enabled": bool(extensions_config.get("sip_check_enabled", True)),
+        "pjsip_supported": bool(extensions_config.get("pjsip_supported", True)),
+        "webrtc_supported": bool(extensions_config.get("webrtc_supported", False)),
         "company_name": str(extensions_config.get("company_name", "")),
-        "extension_type": str(extensions_config.get("extension_type", "pjsip")),
     }
 
 
+
+def get_telephony_config(config):
+    active_client = get_active_client(config)
+    client_config = get_client_config(config, active_client)
+    telephony_config = client_config.get("telephony", {})
+    return {
+        "sip_server": str(telephony_config.get("sip_server", "10.100.121.30")),
+        "call_number": str(telephony_config.get("call_number", "099452011")),
+        "local_port": str(telephony_config.get("local_port", "5062")),
+    }
 
 def get_modules_config(config):  
     active_client = get_active_client(config)

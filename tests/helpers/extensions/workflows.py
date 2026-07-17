@@ -1,5 +1,12 @@
 import time
 
+from tests.helpers.extensions.assertions import (
+    assert_export_contains_extension,
+    assert_export_contains_table_records,
+    assert_export_has_expected_columns,
+    assert_export_has_real_extension_values,
+)
+from tests.helpers.extensions.csv_helpers import csv_records, read_csv_rows, wait_for_csv_download
 from tests.helpers.extensions.data_helpers import extensions_remaining_in_database
 from tests.helpers.test_steps import test_step
 
@@ -499,7 +506,178 @@ def assert_search_has_no_results(extensions_page, extension_number, expected_con
             "No data to display!",
         )
     )
+
+def verify_matching_extension_is_displayed(extensions_page, extension_number):
+    search_extension_and_get_rows(extensions_page, extension_number)
+    assert_extension_record_is_visible(extensions_page, extension_number, "after searching")
+
+
+def verify_full_extension_list_is_displayed(extensions_page):
+    rows = clear_search_and_get_rows(extensions_page)
+    assert rows, "Expected full extension list to be displayed after empty search."
+
+
+def verify_filters_are_cleared_and_full_list_is_displayed(extensions_page, extension_number):
+    search_extension_and_get_rows(extensions_page, extension_number)
+    rows = clear_filters_and_get_rows(extensions_page)
+    assert_search_field_is_empty(extensions_page)
+    assert rows, "Expected full extension list to be displayed after clearing filters."
+
+
+def verify_export_download_contains_expected_columns_and_data(extensions_page, download_dir, extension_number):
+    rows = export_extensions_and_read_rows(extensions_page, download_dir, read_csv_rows, wait_for_csv_download)
+    assert len(rows) > 1, f"Expected exported CSV to contain header and table data, got: {rows}"
+    assert_export_has_expected_columns(rows)
+    assert_export_contains_extension(rows, extension_number)
+    assert_export_has_real_extension_values(rows)
+
+
+def verify_export_contains_records_from_all_pages(extensions_page, download_dir):
+    table_records = collect_table_records_from_all_pages(extensions_page)
+    rows = export_extensions_and_read_rows(extensions_page, download_dir, read_csv_rows, wait_for_csv_download)
+    exported_records = csv_records(rows)
+    assert_export_contains_table_records(table_records, exported_records)
+
+
+def verify_edit_popup_is_populated_with_existing_data(extensions_page):
+    first_row_text = open_edit_popup_for_first_extension(extensions_page)
+    try:
+        assert_edit_popup_matches_row(extensions_page, first_row_text)
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def verify_generated_password_is_saved_after_edit(extensions_page, extension_number):
+    old_password = generate_new_password_in_edit_popup(extensions_page, extension_number)
+    assert_generated_password_was_saved(extensions_page, extension_number, old_password)
+
+
+def verify_edited_values_are_saved(extensions_page, extension_number):
+    updated_password, updated_type, updated_transport_type = edit_extension_and_save_changes(
+        extensions_page,
+        extension_number,
+    )
+    assert_saved_extension_changes_are_visible(
+        extensions_page,
+        extension_number,
+        updated_password,
+        updated_type,
+        updated_transport_type,
+    )
+
+
+def verify_edit_cancel_discards_changes(extensions_page, extension_number):
+    original_record, original_password = change_extension_values_and_cancel(extensions_page, extension_number)
+    assert_cancelled_extension_changes_were_not_saved(
+        extensions_page,
+        extension_number,
+        original_record,
+        original_password,
+    )
+
+
+def verify_add_popup_shows_required_controls(extensions_page):
+    try:
+        open_add_popup_and_assert_controls(extensions_page)
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def verify_add_required_validation_prevents_saving(extensions_page):
+    try:
+        trigger_add_required_validation(extensions_page)
+        assert_add_required_validation(extensions_page)
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def verify_add_generate_password_toggles_password_field(extensions_page):
+    try:
+        open_add_popup_with_password_visible(extensions_page)
+        enable_generated_password_in_add_popup(extensions_page)
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+
+def verify_extension_created_successfully(extensions_page, extension_number):
+    assert_created_extension_is_visible(extensions_page, extension_number)
+
+
+def verify_extension_range_created_successfully(start_extension, end_extension):
+    assert_created_extension_range_exists(start_extension, end_extension)
+
+
+def verify_mobile_popup_opens_with_required_controls(extensions_page):
+    try:
+        open_mobile_popup_for_first_extension(extensions_page)
+        assert_mobile_popup_controls(extensions_page)
+    finally:
+        close_mobile_popup_if_open(extensions_page)
+
+
+def verify_pagination_next_and_previous_work(extensions_page, pytest_module):
+    first_page_number, first_page_records = navigate_to_next_page_and_back(extensions_page)
+    assert_next_page_changes_records(extensions_page, first_page_number, first_page_records, pytest_module)
+    return_to_previous_page(extensions_page, first_page_number)
+
+
+def verify_pending_changes_are_published(extensions_page):
+    publish_changes_and_assert_page_loaded(extensions_page)
+
+
+
+def verify_call_extension_password_edit_is_saved(extensions_page, extension_number):
+    assert_extension_record_is_visible(extensions_page, extension_number, "before call setup edit")
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+
+    try:
+        assert extensions_page.is_add_popup_open(), "Edit popup did not open."
+        original_password = extensions_page.edit_popup_password_value()
+        updated_password = f"{original_password}!"
+        extensions_page.set_edit_popup_password(updated_password)
+        extensions_page.wait_for_ui_idle()
+        extensions_page.submit_edit_popup()
+        extensions_page.wait_for_ui_idle()
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    extensions_page.open_extension_edit_popup(extension_number)
+    extensions_page.wait_for_ui_idle()
+    try:
+        saved_password = extensions_page.edit_popup_password_value()
+        assert saved_password == updated_password, (
+            f"Password was not saved before SIP call verification. "
+            f"Expected {updated_password!r}, got {saved_password!r}."
+        )
+    finally:
+        close_add_popup_if_open(extensions_page)
+
+    return updated_password
+
+def verify_deleted_extension_cannot_call(microsip, sip_extension, password):
+    call_after_delete = check_microsip_call_succeeds(microsip, sip_extension, password)
+    assert not call_after_delete, f"Deleted extension '{sip_extension}' could still make a SIP call."
 _STEP_WRAPPED_WORKFLOWS = [
+    "verify_call_extension_password_edit_is_saved",
+    "verify_deleted_extension_cannot_call",
+    "verify_pending_changes_are_published",
+    "verify_pagination_next_and_previous_work",
+    "verify_mobile_popup_opens_with_required_controls",
+    "verify_extension_range_created_successfully",
+    "verify_extension_created_successfully",
+    "verify_add_generate_password_toggles_password_field",
+    "verify_add_required_validation_prevents_saving",
+    "verify_add_popup_shows_required_controls",
+    "verify_edit_cancel_discards_changes",
+    "verify_edited_values_are_saved",
+    "verify_generated_password_is_saved_after_edit",
+    "verify_edit_popup_is_populated_with_existing_data",
+    "verify_export_contains_records_from_all_pages",
+    "verify_export_download_contains_expected_columns_and_data",
+    "verify_filters_are_cleared_and_full_list_is_displayed",
+    "verify_full_extension_list_is_displayed",
+    "verify_matching_extension_is_displayed",
     "search_extension_and_get_rows",
     "clear_search_and_get_rows",
     "clear_filters_and_get_rows",

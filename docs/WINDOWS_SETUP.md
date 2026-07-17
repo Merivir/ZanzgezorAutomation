@@ -71,9 +71,10 @@ Environment behavior is configured per client under `extensions`:
 
 - `cloud_related`: whether cloud-only tests apply
 - `sip_check_enabled`: whether SIP checks should run
+- `pjsip_supported`: whether PJSIP extension scenarios are available
+- `webrtc_supported`: whether WebRTC extension creation and user attachment are available
 - Publish behavior is derived from `real_extension`; non-empty values require Publish
 - `company_name`: exact database company used to scope extension data
-- `extension_type`: extension type used for scoped data and SIP checks
 
 Do not change permission fields as part of environment setup.
 

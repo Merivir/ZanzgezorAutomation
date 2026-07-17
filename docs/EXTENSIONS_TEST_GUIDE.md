@@ -26,18 +26,32 @@ Each client has an `extensions` block:
 "extensions": {
   "cloud_related": true,
   "sip_check_enabled": true,
+  "pjsip_supported": true,
+  "webrtc_supported": true,
   "company_name": "new-hzor",
-  "extension_type": "pjsip"
 }
 ```
 
 - `cloud_related`: enables cloud-only behavior tests.
 - `sip_check_enabled`: allows SIP integration checks in that environment.
+- `pjsip_supported`: enables the existing PJSIP Extensions scenarios.
+- `webrtc_supported`: enables WebRTC extension creation and user-attachment scenarios.
+- Extension type is supplied by the workflow, not client configuration. Current helpers default to `pjsip`; WebRTC helpers pass `webrtc`.
 - Publish behavior is derived from the created row: a non-empty `real_extension` requires Publish.
 - `company_name`: exact `company.name` used to scope extension SQL.
-- `extension_type`: extension type used for data selection, currently `pjsip`.
 
 Permission fields are independent from these settings and must not be changed while configuring Extensions tests.
+Each client also has a `telephony` block for SIP automation:
+
+```json
+"telephony": {
+  "sip_server": "10.100.121.30",
+  "call_number": "099452011",
+  "local_port": 5062
+}
+```
+
+PJSUA and MicroSIP read these values from the active client. Environment variables can still override them for a temporary run.
 
 ## Extension Identity
 
@@ -193,7 +207,7 @@ Remove-Item Env:TEST_CLIENT
 
 - Confirm `active_client` or `TEST_CLIENT`.
 - Confirm `company_name` exactly matches the database value.
-- Confirm `extension_type` matches the Add form selection.
+- Confirm the workflow uses the expected explicit type: `pjsip` or `webrtc`.
 - Confirm the database endpoint is reachable.
 - Compare `extension` and `real_extension` before debugging SIP registration.
 - Confirm the configured softphone provider has a usable executable.
